@@ -17,14 +17,17 @@ The media lives in this repo, so adding a new GIF is just a commit — no extens
 
 ## Add media
 
-Put files in a folder under `media/` and push. Each folder becomes a tab in the picker.
+Put files in a folder under `media/` and push. Each folder is a category tab in the picker, so you only see that category.
 
 ```
 media/
-  gifs/     dance.gif, lol.gif ...
-  emojis/   pepe.png, cat.webp ...
+  anime/     anime reaction memes
+  doodles/   hand-drawn reaction faces
+  emoji/     3D emoji memes
+  text/      text-only replies (nvm, ugh ...)
 ```
 
-Supported: `.gif` `.png` `.jpg` `.jpeg` `.webp`. File names are used for search.
+Make a new folder to add a new category. Supported: `.gif` `.png` `.jpg` `.jpeg` `.webp`.
+Name files by what they say (`do-i-care-no.jpg`), since search matches file names.
 
 If you fork or rename the repo, change `REPO` at the top of `popup.js`.

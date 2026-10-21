@@ -43,16 +43,16 @@ function render() {
   const q = $('#q').value.trim().toLowerCase();
   $('#tabs').replaceChildren(...tabs.map(t => {
     const b = document.createElement('button');
-    b.textContent = t;
+    b.textContent = `${t} ${items.filter(i => i.tab === t).length}`;
     b.className = t === tab && !q ? 'on' : '';
     b.onclick = () => { tab = t; $('#q').value = ''; render(); };
     return b;
   }));
-  $('#grid').replaceChildren(...items.filter(i => q ? i.name.toLowerCase().includes(q) : i.tab === tab).map(i => {
+  $('#grid').replaceChildren(...items.filter(i => q ? i.label.includes(q) : i.tab === tab).map(i => {
     const b = document.createElement('button');
     const img = new Image();
     img.src = raw(i.path);
-    img.alt = img.title = i.name;
+    img.alt = img.title = i.label;
     img.loading = 'lazy';
     b.append(img);
     b.onclick = () => send(i);
@@ -67,10 +67,14 @@ function render() {
     if (!res.ok) throw new Error(`GitHub said ${res.status}`);
     items = (await res.json()).tree
       .filter(f => f.type === 'blob' && f.path.startsWith('media/') && TYPES[ext(f.path)])
-      .map(f => { const parts = f.path.split('/'); return { path: f.path, name: parts.at(-1), tab: parts.length > 2 ? parts[1] : 'other' }; });
+      .map(f => {
+        const parts = f.path.split('/'), name = parts.at(-1);
+        // "do-i-care-no.jpg" -> "do i care no", so search works with spaces
+        return { path: f.path, name, label: name.replace(/\.\w+$/, '').replace(/[-_]/g, ' ').toLowerCase(), tab: parts.length > 2 ? parts[1] : 'other' };
+      });
     tabs = [...new Set(items.map(i => i.tab))];
     tab = tabs[0];
-    status(items.length ? '' : 'No media yet. Add files to media/gifs or media/emojis in the repo.');
+    status(items.length ? '' : 'No media yet. Add images to a folder under media/ in the repo.');
     render();
   } catch (e) {
     status(`Could not load ${REPO}: ${e.message}`);
