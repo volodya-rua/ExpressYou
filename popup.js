@@ -117,5 +117,12 @@ $('#q').onkeydown = e => { if (e.key === 'Enter') $('#grid .cell')?.click(); }; 
 $('#tabs').onscroll = fadeTabs;
 // In the chat panel, Esc closes it (the first Esc clears a search, like any search box).
 addEventListener('keydown', e => { if (EMBEDDED && e.key === 'Escape' && !$('#q').value) parent.postMessage({ expressyou: 'close' }, PARENT); });
+// The panel stays loaded between opens; each time it's shown, start fresh with Recent up to date.
+addEventListener('message', e => {
+  if (!EMBEDDED || e.source !== parent || e.origin !== PARENT || e.data?.expressyou !== 'shown') return;
+  $('#q').value = '';
+  if (items.length) render();
+  $('#q').focus();
+});
 $('#q').focus(); // autofocus is ignored inside a frame
 load();

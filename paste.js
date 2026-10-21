@@ -30,14 +30,21 @@ function pasteFile(dataUrl, name, box, autoSend = /(^|\.)(instagram|discord|what
       const button = icon?.closest('button, [role="button"]');
       if (button) { button.click(); clicked = true; } else if (clicked) return; // preview closed: it was sent
       if (Date.now() - start > 4000) return clicked || enter(); // never saw the preview: fall back to Enter
-      setTimeout(poll, button ? 400 : 50);
+      setTimeout(poll, button ? 250 : 50);
     };
     poll();
   } else {
-    // Discord and Instagram attach the image to the box and send on Enter. Press it right after the paste,
-    // then once more in case the site was still attaching; Enter on an already-emptied box sends nothing.
-    setTimeout(enter, 60);
-    setTimeout(enter, 400);
+    // Discord and Instagram show a preview of the pasted image (a blob: <img>) once they've taken it:
+    // press Enter the moment it appears. The timed presses are a backup for when no preview shows;
+    // Enter on an already-emptied box sends nothing, so the extra presses can't double-send.
+    const preview = n => n.nodeType === 1 && (n.matches('img[src^="blob:"]') || !!n.querySelector('img[src^="blob:"]'));
+    const watch = new MutationObserver(records => {
+      if (records.some(r => preview(r.target) || [...r.addedNodes].some(preview))) { watch.disconnect(); setTimeout(enter); }
+    });
+    watch.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+    setTimeout(() => watch.disconnect(), 1500);
+    setTimeout(enter, 250);
+    setTimeout(enter, 700);
   }
   return true;
 }
