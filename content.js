@@ -1,5 +1,7 @@
 // Puts an ExpressYou button inside the chat's message box, at its right end. It opens the
 // picker (popup.html) in a panel and sends whatever you pick in that chat.
+// Wrapped so background.js can inject a fresh copy into an open tab after a reload.
+(() => {
 const PICKER = chrome.runtime.getURL('popup.html');
 const PICKER_ORIGIN = new URL(PICKER).origin;
 
@@ -33,6 +35,7 @@ function makeRoom(el) {
 }
 
 function place() {
+  if (!chrome.runtime?.id) { clearInterval(timer); panel?.remove(); host.remove(); return; } // extension reloaded: the fresh copy takes over
   if (panel) return; // stay put while the panel is open
   box = findBox();
   const r = box?.getBoundingClientRect();
@@ -85,6 +88,7 @@ document.addEventListener('mousedown', e => { if (panel && !e.composedPath().inc
 document.addEventListener('keydown', e => { if (panel && e.key === 'Escape') closePanel(); }, true);
 
 // ponytail: polls every 500ms to follow the chat box through single-page navigation; a MutationObserver if this ever shows up in profiles
-setInterval(place, 500);
+const timer = setInterval(place, 500);
 addEventListener('resize', place);
 place();
+})();
