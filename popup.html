@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; font: 13px system-ui, sans-serif; }
+  body { width: 360px; margin: 0; padding: 8px; background: Canvas; color: CanvasText; }
+  #q { width: 100%; box-sizing: border-box; padding: 6px 8px; }
+  #tabs { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }
+  #tabs button { padding: 4px 10px; border-radius: 12px; border: 1px solid GrayText; background: none; color: inherit; cursor: pointer; }
+  #tabs button.on { background: Highlight; color: HighlightText; border-color: Highlight; }
+  #grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; max-height: 420px; overflow-y: auto; }
+  #grid button { padding: 0; border: 0; background: none; cursor: pointer; aspect-ratio: 1; }
+  #grid img { width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
+  #grid button:hover img, #grid button:focus img { outline: 2px solid Highlight; }
+  #status { margin-top: 6px; min-height: 1em; color: GrayText; }
+</style>
+<input id="q" type="search" placeholder="Search" autofocus>
+<div id="tabs"></div>
+<div id="grid"></div>
+<div id="status">Loading…</div>
+<script src="popup.js"></script>

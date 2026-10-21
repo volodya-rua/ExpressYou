@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "GIF & Emoji",
+  "version": "1.0",
+  "description": "Send GIFs and emojis stored in a GitHub repo on Instagram, Discord and WhatsApp Web.",
+  "action": { "default_popup": "popup.html" },
+  "permissions": ["activeTab", "scripting"],
+  "commands": {
+    "_execute_action": { "suggested_key": { "default": "Alt+G" } }
+  }
+}
