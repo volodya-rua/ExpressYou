@@ -7,3 +7,10 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: js }).catch(() => {}); // e.g. a tab that is still loading
   }
 });
+
+// Alt+G: in a supported chat the in-page picker toggles; anywhere else the toolbar popup opens.
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  if (command !== 'open-picker') return;
+  const opened = await chrome.tabs.sendMessage(tab.id, { expressyou: 'toggle' }).catch(() => false);
+  if (!opened) chrome.action.openPopup().catch(() => {});
+});

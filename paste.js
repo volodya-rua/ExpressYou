@@ -1,7 +1,7 @@
-// Pastes an image into a chat's message box like Ctrl+V would, then on the chat sites sends it.
-// Shared by the toolbar popup (injected with chrome.scripting) and the in-chat button (content.js),
-// so it must stay self-contained: no outside variables.
-function pasteFile(dataUrl, name, box, autoSend = /(^|\.)(instagram|discord|whatsapp)\.com$/.test(location.hostname)) {
+// Pastes an image into a chat's message box like Ctrl+V would and, when asked (the supported chat
+// sites, via content.js), sends it. Shared by content.js and the toolbar popup, which injects it with
+// chrome.scripting on other sites, so it must stay self-contained: no outside variables.
+function pasteFile(dataUrl, name, box, autoSend = false) {
   if (!box) {
     const a = document.activeElement;
     box = a && (a.isContentEditable || a.tagName === 'TEXTAREA') ? a
@@ -33,18 +33,24 @@ function pasteFile(dataUrl, name, box, autoSend = /(^|\.)(instagram|discord|what
       setTimeout(poll, button ? 250 : 50);
     };
     poll();
-  } else {
-    // Discord and Instagram show a preview of the pasted image (a blob: <img>) once they've taken it:
-    // press Enter the moment it appears. The timed presses are a backup for when no preview shows;
-    // Enter on an already-emptied box sends nothing, so the extra presses can't double-send.
-    const preview = n => n.nodeType === 1 && (n.matches('img[src^="blob:"]') || !!n.querySelector('img[src^="blob:"]'));
-    const watch = new MutationObserver(records => {
-      if (records.some(r => preview(r.target) || [...r.addedNodes].some(preview))) { watch.disconnect(); setTimeout(enter); }
-    });
-    watch.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
-    setTimeout(() => watch.disconnect(), 1500);
-    setTimeout(enter, 250);
-    setTimeout(enter, 700);
+    return true;
   }
+
+  // Elsewhere the site shows its own preview of the pasted image (a blob: <img>, in the box or in a dialog
+  // like Telegram's) once it has taken it: press Enter the moment it appears, again while it is still there,
+  // and stop once it's gone, because then the meme was sent. Sites that show no preview get timed presses.
+  // Enter on an already-emptied box sends nothing, so the extra presses can't double-send.
+  let preview, presses = 0;
+  const press = () => { if (presses < 4 && !(preview && !preview.isConnected)) { presses++; enter(); } };
+  const found = n => n.nodeType === 1 && (n.matches('img[src^="blob:"]') ? n : n.querySelector('img[src^="blob:"]'));
+  const watch = new MutationObserver(records => {
+    for (const r of records) for (const n of r.type === 'attributes' ? [r.target] : r.addedNodes) {
+      const img = found(n);
+      if (img) { preview = img; watch.disconnect(); return setTimeout(press); }
+    }
+  });
+  watch.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+  setTimeout(() => watch.disconnect(), 1500);
+  for (const ms of [250, 700, 1300]) setTimeout(press, ms);
   return true;
 }

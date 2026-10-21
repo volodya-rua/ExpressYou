@@ -1,7 +1,9 @@
 # ExpressYou
 
-Chrome/Edge extension that sends my own GIFs and emojis on **Instagram Web**, **Discord Web** and **WhatsApp Web**.
+Chrome/Edge extension that sends my own memes and GIFs straight into web chats.
 The media lives in this repo, so adding a new GIF is just a commit — no extension update needed.
+
+Works in: **Instagram, Discord, WhatsApp, Telegram, Messenger, Facebook, X (Twitter), Slack, Microsoft Teams, Google Chat, Google Messages, LinkedIn, Reddit and Snapchat** (web versions).
 
 ## Install
 
@@ -11,16 +13,19 @@ The media lives in this repo, so adding a new GIF is just a commit — no extens
 
 ## Use
 
-On **Instagram, Discord and WhatsApp Web** a small pink smiley button sits inside the message box, at its right end:
+In those chats a small smiley-bubble button sits inside the message box, at its right end:
 
-1. Open a chat and click the smiley button.
+1. Open a chat and click the smiley (or press **Alt+G**).
 2. Click a meme. It's sent straight away.
 
-Faster: type in the search box and press **Enter** to send the top match. The **Recent** tab keeps the memes you sent last. **Esc** closes the panel.
+Faster:
+- Just start typing to search, then **Enter** sends the top match.
+- **Arrow keys** move around the grid; **Enter** sends the one you're on. **Esc** closes.
+- **Recent** (clock) keeps what you sent last; the **star** on any meme saves it to **Favorites**.
 
-On any other site, click the extension icon (or press **Alt+G**) with the message box focused; the meme is pasted and you press **Enter** to send.
+The picker switches to a night edition on dark chats. On any other site, click the extension icon (or press **Alt+G**) with the message box focused; the meme is pasted and you press **Enter** to send.
 
-Images load straight from this repo, so you only need the extension files (`manifest.json`, `popup.html`, `popup.js`, `paste.js`, `content.js`, `fonts/`); the `media/` folder in your download isn't used.
+Memes are saved in your browser after the first load, so the picker opens instantly and still works offline. You only need the extension files (`manifest.json`, `background.js`, `popup.html`, `popup.js`, `paste.js`, `content.js`, `fonts/`); the `media/` folder in your download isn't used.
 
 ## Add media
 
