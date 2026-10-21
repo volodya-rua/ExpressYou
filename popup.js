@@ -23,16 +23,27 @@ async function saveRecent(path) { recent = [path, ...recent.filter(p => p !== pa
 const recentItems = () => recent.map(p => items.find(i => i.path === p)).filter(Boolean);
 const inTab = t => t === RECENT ? recentItems() : items.filter(i => i.tab === t);
 
+// The grid and the send share one download per meme, so a pick goes out without waiting on the network.
+const files = new Map(); // path -> Promise<{ blob, url }>
+function getFile(item) {
+  if (!files.has(item.path)) {
+    files.set(item.path, fetch(raw(item.path)).then(async res => {
+      if (!res.ok) throw new Error(`Download failed (${res.status}). Try again.`);
+      const blob = new Blob([await res.arrayBuffer()], { type: TYPES[ext(item.path)] });
+      return { blob, url: URL.createObjectURL(blob) };
+    }).catch(e => { files.delete(item.path); throw e; }));
+  }
+  return files.get(item.path);
+}
+
 async function send(item, cell) {
   cell.classList.add('sending');
   status('Sending…');
   try {
-    const res = await fetch(raw(item.path));
-    if (!res.ok) throw new Error(`Download failed (${res.status}). Try again.`);
-    const blob = new Blob([await res.arrayBuffer()], { type: TYPES[ext(item.path)] });
+    const { blob } = await getFile(item);
     const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
     if (EMBEDDED) {
-      await saveRecent(item.path);
+      saveRecent(item.path); // not awaited: the storage write is already on its way
       return parent.postMessage({ expressyou: 'paste', dataUrl, name: item.name }, PARENT);
     }
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -62,7 +73,9 @@ function render() {
   const shown = q ? items.filter(i => i.label.includes(q)) : inTab(tab);
   $('#grid').replaceChildren(...shown.length ? shown.map((i, n) => {
     const b = h('button', { className: q && !n ? 'cell top' : 'cell', title: i.label, onclick: () => send(i, b) });
-    const img = h('img', { src: raw(i.path), alt: i.label, loading: 'lazy', onerror: () => img.replaceWith(h('span', { className: 'alt' }, i.label)) });
+    const fallback = () => img.replaceWith(h('span', { className: 'alt' }, i.label));
+    const img = h('img', { alt: i.label, onerror: fallback });
+    getFile(i).then(f => { img.src = f.url; }, fallback);
     b.append(img);
     return b;
   }) : [
