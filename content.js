@@ -1,19 +1,19 @@
-// Puts an ExpressYou button just above the chat's message box. It opens the picker
-// (popup.html) in a panel and pastes whatever you pick into that box.
+// Puts an ExpressYou button inside the chat's message box, at its right end. It opens the
+// picker (popup.html) in a panel and sends whatever you pick in that chat.
 const PICKER = chrome.runtime.getURL('popup.html');
 const PICKER_ORIGIN = new URL(PICKER).origin;
 
 const host = document.createElement('div');
 const root = host.attachShadow({ mode: 'closed' }); // keeps the site's CSS out of our button
 root.innerHTML = `<style>
-  button { position: fixed; z-index: 2147483647; width: 30px; height: 30px; padding: 0; display: grid; place-items: center; border: 2px solid #111; border-radius: 0; background: #f2b8c6; cursor: pointer; }
+  button { position: fixed; z-index: 2147483647; width: 26px; height: 26px; padding: 0; display: grid; place-items: center; border: 2px solid #111; border-radius: 0; background: #f2b8c6; cursor: pointer; }
   button:hover, button[aria-expanded="true"] { background: #fff; }
   button:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
   iframe { position: fixed; z-index: 2147483647; width: 360px; border: 2px solid #111; background: #f2b8c6; box-shadow: 0 10px 30px rgb(0 0 0 / .35); }
   .notice { position: fixed; z-index: 2147483647; max-width: 300px; padding: 8px 10px; background: #111; color: #fff; font: 600 12px/1.35 system-ui, sans-serif; }
 </style>
 <button type="button" title="ExpressYou memes" aria-label="Open ExpressYou memes" aria-expanded="false">
-  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="8"/><path d="M6.5 12q3.5 3.5 7 0M7.5 7.5v1M12.5 7.5v1"/></svg>
+  <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="8"/><path d="M6.5 12q3.5 3.5 7 0M7.5 7.5v1M12.5 7.5v1"/></svg>
 </button>`;
 const btn = root.querySelector('button');
 let box, panel;
@@ -21,14 +21,27 @@ let box, panel;
 // The message box is the last editable textbox on the page (WhatsApp's search box comes before it).
 const findBox = () => [...document.querySelectorAll('[contenteditable="true"][role="textbox"], footer [contenteditable="true"]')].pop();
 
+// Pad the box's right end once so typed text never runs under the button.
+const padded = new WeakSet();
+function makeRoom(el) {
+  if (padded.has(el)) return;
+  padded.add(el);
+  if (parseFloat(getComputedStyle(el).paddingRight) >= 32) return;
+  const width = el.getBoundingClientRect().width;
+  el.style.paddingRight = '32px';
+  if (el.getBoundingClientRect().width > width + 1) el.style.boxSizing = 'border-box'; // a width:100% box would grow instead
+}
+
 function place() {
   if (panel) return; // stay put while the panel is open
   box = findBox();
   const r = box?.getBoundingClientRect();
   if (!r?.width) { if (!root.querySelector('.notice')) host.remove(); return; } // no chat open: no button
   if (!host.isConnected) document.documentElement.append(host);
-  btn.style.top = `${Math.max(4, r.top - 36)}px`;
-  btn.style.left = `${r.right - 30}px`;
+  makeRoom(box);
+  // Right end of the box, centred on its last line so it stays put as a long message grows upward.
+  btn.style.top = `${r.bottom - Math.min(r.height, 36) / 2 - 13}px`;
+  btn.style.left = `${r.right - 29}px`;
 }
 
 function openPanel() {
@@ -66,7 +79,7 @@ addEventListener('message', e => {
   closePanel(); // close first so the site's own attachment preview keeps focus after the paste
   if (e.data.expressyou !== 'paste') return;
   // The site may have rebuilt its message box while the panel was open.
-  if (!pasteFile(e.data.dataUrl, e.data.name, box?.isConnected ? box : findBox())) notice("Couldn't find the message box. Click into the chat and pick again.");
+  if (!pasteFile(e.data.dataUrl, e.data.name, box?.isConnected ? box : findBox(), true)) notice("Couldn't find the message box. Click into the chat and pick again.");
 });
 document.addEventListener('mousedown', e => { if (panel && !e.composedPath().includes(host)) closePanel(false); }, true);
 document.addEventListener('keydown', e => { if (panel && e.key === 'Escape') closePanel(); }, true);

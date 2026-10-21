@@ -4,7 +4,7 @@ const TYPES = { gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'im
 // One newsprint paper colour per tab: Recent first, then each folder in order.
 const PAPERS = ['#f2b8c6', '#d9e86a', '#c9b8f0', '#f7c59f', '#a8d8ea', '#b8e6c9'];
 const RECENT = 'Recent', MAX_RECENT = 12;
-const HINT = 'Pick a meme, then press Enter in the chat to send.';
+const HINT = 'Click a meme to send it.';
 // content.js opens this page in a frame inside the chat; there we hand the file to the page instead of injecting.
 const EMBEDDED = window !== top;
 const PARENT = location.ancestorOrigins?.[0];
@@ -39,7 +39,7 @@ async function send(item, cell) {
     const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: active.id }, func: pasteFile, args: [dataUrl, item.name] });
     if (!result) throw new Error('No message box here. Click into a chat first, then pick again.');
     await saveRecent(item.path);
-    window.close(); // focus goes back to the chat, press Enter to send
+    window.close(); // pasteFile sends it on the chat sites; elsewhere you press Enter
   } catch (e) {
     cell.classList.remove('sending');
     status(/Cannot access|cannot be scripted/i.test(e.message) ? "Can't paste on this page. Open Instagram, Discord or WhatsApp Web." : e.message, true);

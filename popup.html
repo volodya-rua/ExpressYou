@@ -10,9 +10,7 @@
     --panel: #fff;
     --paper: #f2b8c6; /* re-tinted per section by popup.js */
     --tone: radial-gradient(var(--ink) 1px, transparent 1.3px) 0 0 / 5px 5px;
-    --tone-faint: radial-gradient(rgb(17 17 17 / .16) 1px, transparent 1.3px) 0 0 / 5px 5px;
-    --tone-dense: radial-gradient(var(--ink) 1.15px, transparent 1.45px) 0 0 / 4px 4px;
-    --ease: cubic-bezier(.16, 1, .3, 1);
+    --tone-faint: radial-gradient(rgb(17 17 17 / .16) 1px, transparent 1.3px) 0 0 / 5px 5px;    --ease: cubic-bezier(.16, 1, .3, 1);
     font: 13px/1.35 system-ui, -apple-system, 'Segoe UI', sans-serif;
     background: var(--paper);
     transition: background-color .3s var(--ease);
@@ -59,6 +57,7 @@
   .empty p { margin: 6px 0 0; color: var(--ink-soft); }
   .retry { margin-top: 14px; padding: 7px 14px; border: 2px solid var(--ink); background: var(--ink); color: var(--panel); font-weight: 700; cursor: pointer; }
   .retry:hover { background: var(--panel); color: var(--ink); }
+  .retry:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
   #status { min-height: 18px; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
   #status.alert { padding: 6px 8px; background: var(--ink); color: var(--panel); }
