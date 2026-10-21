@@ -1,70 +1,86 @@
 // Public repo that holds the media/ folder. Change this if you fork or rename it.
 const REPO = 'volodya-rua/ExpressYou';
 const TYPES = { gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
+// One newsprint paper colour per tab: Recent first, then each folder in order.
+const PAPERS = ['#f2b8c6', '#d9e86a', '#c9b8f0', '#f7c59f', '#a8d8ea', '#b8e6c9'];
+const RECENT = 'Recent', MAX_RECENT = 12;
+const HINT = 'Pick a meme, then press Enter in the chat to send.';
+// content.js opens this page in a frame inside the chat; there we hand the file to the page instead of injecting.
+const EMBEDDED = window !== top;
+const PARENT = location.ancestorOrigins?.[0];
 
 const $ = s => document.querySelector(s);
+const h = (tag, props, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 const ext = p => p.split('.').pop().toLowerCase();
 const raw = p => `https://raw.githubusercontent.com/${REPO}/HEAD/${p.split('/').map(encodeURIComponent).join('/')}`;
-const status = t => $('#status').textContent = t;
-let items = [], tabs = [], tab;
+const status = (t, alert = false) => { $('#status').textContent = t; $('#status').classList.toggle('alert', alert); };
+let items = [], tabs = [RECENT], tab = RECENT, recent = [];
 
-// Runs inside the chat page: pastes the file into the message box like Ctrl+V would.
-function pasteFile(dataUrl, name) {
-  const a = document.activeElement;
-  const box = a && (a.isContentEditable || a.tagName === 'TEXTAREA') ? a
-    : [...document.querySelectorAll('[contenteditable="true"][role="textbox"], footer [contenteditable="true"]')].pop();
-  if (!box) return false;
-  const [head, b64] = dataUrl.split(',');
-  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  const dt = new DataTransfer();
-  dt.items.add(new File([bytes], name, { type: head.slice(5, head.indexOf(';')) }));
-  box.focus();
-  box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-  return true;
-}
+// chrome.storage is shared by the toolbar popup and the in-chat panel (localStorage would be split per site).
+const store = globalThis.chrome?.storage?.local;
+async function loadRecent() { try { recent = (await store.get('recent')).recent ?? []; } catch { recent = []; } }
+async function saveRecent(path) { recent = [path, ...recent.filter(p => p !== path)].slice(0, MAX_RECENT); try { await store?.set({ recent }); } catch {} }
+const recentItems = () => recent.map(p => items.find(i => i.path === p)).filter(Boolean);
+const inTab = t => t === RECENT ? recentItems() : items.filter(i => i.tab === t);
 
-async function send(item) {
+async function send(item, cell) {
+  cell.classList.add('sending');
+  status('Sending…');
   try {
-    status('Sending…');
     const res = await fetch(raw(item.path));
-    if (!res.ok) throw new Error(`download failed (${res.status})`);
+    if (!res.ok) throw new Error(`Download failed (${res.status}). Try again.`);
     const blob = new Blob([await res.arrayBuffer()], { type: TYPES[ext(item.path)] });
     const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+    if (EMBEDDED) {
+      await saveRecent(item.path);
+      return parent.postMessage({ expressyou: 'paste', dataUrl, name: item.name }, PARENT);
+    }
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
     const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: active.id }, func: pasteFile, args: [dataUrl, item.name] });
-    if (!result) return status('Open a chat and click the message box first.');
+    if (!result) throw new Error('No message box here. Click into a chat first, then pick again.');
+    await saveRecent(item.path);
     window.close(); // focus goes back to the chat, press Enter to send
   } catch (e) {
-    status(`Error: ${e.message}`);
+    cell.classList.remove('sending');
+    status(/Cannot access|cannot be scripted/i.test(e.message) ? "Can't paste on this page. Open Instagram, Discord or WhatsApp Web." : e.message, true);
   }
 }
 
+const empty = (title, text, ...extra) => h('div', { className: 'empty' }, h('strong', {}, title), text ? h('p', {}, text) : '', ...extra);
+const fadeTabs = () => { const t = $('#tabs'); t.classList.toggle('more', t.scrollLeft + t.clientWidth < t.scrollWidth - 1); };
+
 function render() {
   const q = $('#q').value.trim().toLowerCase();
-  $('#tabs').replaceChildren(...tabs.map(t => {
-    const b = document.createElement('button');
-    b.textContent = `${t} ${items.filter(i => i.tab === t).length}`;
-    b.className = t === tab && !q ? 'on' : '';
-    b.onclick = () => { tab = t; $('#q').value = ''; render(); };
-    return b;
-  }));
-  $('#grid').replaceChildren(...items.filter(i => q ? i.label.includes(q) : i.tab === tab).map(i => {
-    const b = document.createElement('button');
-    const img = new Image();
-    img.src = raw(i.path);
-    img.alt = img.title = i.label;
-    img.loading = 'lazy';
+  document.documentElement.style.setProperty('--paper', PAPERS[tabs.indexOf(tab) % PAPERS.length]);
+  $('#tabs').replaceChildren(...tabs.map(t => h('button', {
+    ariaPressed: String(t === tab && !q),
+    onclick: () => { tab = t; $('#q').value = ''; render(); },
+  }, h('span', {}, t, t === RECENT ? '' : h('span', { className: 'n' }, String(inTab(t).length))))));
+  $('#tabs [aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  fadeTabs();
+
+  const shown = q ? items.filter(i => i.label.includes(q)) : inTab(tab);
+  $('#grid').replaceChildren(...shown.length ? shown.map((i, n) => {
+    const b = h('button', { className: q && !n ? 'cell top' : 'cell', title: i.label, onclick: () => send(i, b) });
+    const img = h('img', { src: raw(i.path), alt: i.label, loading: 'lazy', onerror: () => img.replaceWith(h('span', { className: 'alt' }, i.label)) });
     b.append(img);
-    b.onclick = () => send(i);
     return b;
-  }));
+  }) : [
+    q ? empty('No hits.', `Nothing is called “${q}”. Try another word.`)
+      : !items.length ? empty('No memes yet.', 'Add images to a folder under media/ in the repo, then reopen.')
+      : empty('Nothing yet.', 'Memes you send show up here for next time.'),
+  ]);
+  status(q && shown.length ? `${shown.length} ${shown.length === 1 ? 'hit' : 'hits'} in all folders. Enter sends the first.` : HINT);
 }
 
-(async () => {
+async function load() {
+  $('#grid').replaceChildren(...Array.from({ length: 9 }, () => h('i', { className: 'ghost' })));
+  status('Loading memes…');
   try {
     // Browser HTTP cache revalidates this with ETags; 304s don't count against GitHub's 60/hour limit.
-    const res = await fetch(`https://api.github.com/repos/${REPO}/git/trees/HEAD?recursive=1`);
-    if (!res.ok) throw new Error(`GitHub said ${res.status}`);
+    const [res] = await Promise.all([fetch(`https://api.github.com/repos/${REPO}/git/trees/HEAD?recursive=1`), loadRecent()]);
+    if (res.status === 403 || res.status === 429) throw new Error("GitHub's hourly limit was hit. Try again in a few minutes.");
+    if (!res.ok) throw new Error(`GitHub answered ${res.status}. Try again in a moment.`);
     items = (await res.json()).tree
       .filter(f => f.type === 'blob' && f.path.startsWith('media/') && TYPES[ext(f.path)])
       .map(f => {
@@ -72,12 +88,21 @@ function render() {
         // "do-i-care-no.jpg" -> "do i care no", so search works with spaces
         return { path: f.path, name, label: name.replace(/\.\w+$/, '').replace(/[-_]/g, ' ').toLowerCase(), tab: parts.length > 2 ? parts[1] : 'other' };
       });
-    tabs = [...new Set(items.map(i => i.tab))];
-    tab = tabs[0];
-    status(items.length ? '' : 'No media yet. Add images to a folder under media/ in the repo.');
+    tabs = [RECENT, ...new Set(items.map(i => i.tab))];
+    tab = recentItems().length || tabs.length < 2 ? RECENT : tabs[1];
+    $('#count').textContent = `${items.length} memes`;
     render();
   } catch (e) {
-    status(`Could not load ${REPO}: ${e.message}`);
+    $('#grid').replaceChildren(empty("Can't reach GitHub.", '', h('button', { className: 'retry', onclick: load }, 'Try again')));
+    status(e instanceof TypeError ? 'Check your internet connection, then try again.' : e.message, true); // TypeError = fetch itself failed
   }
-})();
+}
+
+document.documentElement.classList.toggle('embedded', EMBEDDED);
 $('#q').oninput = render;
+$('#q').onkeydown = e => { if (e.key === 'Enter') $('#grid .cell')?.click(); }; // Enter sends the top hit
+$('#tabs').onscroll = fadeTabs;
+// In the chat panel, Esc closes it (the first Esc clears a search, like any search box).
+addEventListener('keydown', e => { if (EMBEDDED && e.key === 'Escape' && !$('#q').value) parent.postMessage({ expressyou: 'close' }, PARENT); });
+$('#q').focus(); // autofocus is ignored inside a frame
+load();

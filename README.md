@@ -11,9 +11,17 @@ The media lives in this repo, so adding a new GIF is just a commit — no extens
 
 ## Use
 
-1. Open a chat and click the message box.
-2. Click the extension icon (or press **Alt+G**).
-3. Click a GIF/emoji, then press **Enter** to send.
+On **Instagram, Discord and WhatsApp Web** a small pink smiley button sits just above the message box:
+
+1. Open a chat and click the smiley button.
+2. Click a meme. It drops into the message box.
+3. Press **Enter** to send.
+
+Faster: type in the search box and press **Enter** to send the top match. The **Recent** tab keeps the memes you sent last. **Esc** closes the panel.
+
+On any other site, click the extension icon (or press **Alt+G**) with the message box focused.
+
+Images load straight from this repo, so you only need the extension files (`manifest.json`, `popup.html`, `popup.js`, `paste.js`, `content.js`, `fonts/`); the `media/` folder in your download isn't used.
 
 ## Add media
 

@@ -1,10 +1,18 @@
 {
   "manifest_version": 3,
   "name": "ExpressYou",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Send GIFs and emojis stored in a GitHub repo on Instagram, Discord and WhatsApp Web.",
   "action": { "default_popup": "popup.html" },
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab", "scripting", "storage"],
+  "content_scripts": [{
+    "matches": ["https://www.instagram.com/*", "https://discord.com/*", "https://web.whatsapp.com/*"],
+    "js": ["paste.js", "content.js"]
+  }],
+  "web_accessible_resources": [{
+    "resources": ["popup.html"],
+    "matches": ["https://www.instagram.com/*", "https://discord.com/*", "https://web.whatsapp.com/*"]
+  }],
   "commands": {
     "_execute_action": { "suggested_key": { "default": "Alt+G" } }
   }
