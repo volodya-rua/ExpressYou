@@ -42,4 +42,9 @@ media/
 Make a new folder to add a new category. Supported: `.gif` `.png` `.jpg` `.jpeg` `.webp`.
 Name files by what they say (`do-i-care-no.jpg`), since search matches file names.
 
+GIFs hosted elsewhere can be added without copying them: put a `links.json` in a category folder,
+a list of `{ "name": "what it says", "url": "https://...gif", "thumb": "https://...webp (optional preview)" }`.
+The `hype`, `lol`, `love`, `mood`, `sad` and `shook` tabs work this way, with 113 animated reactions
+from Google's [Animated Noto Emoji](https://googlefonts.github.io/noto-emoji-animation/) (CC BY 4.0, see `media/CREDITS.md`).
+
 If you fork or rename the repo, change `REPO` at the top of `popup.js`.

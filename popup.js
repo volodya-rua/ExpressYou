@@ -36,14 +36,15 @@ const files = new Map(); // path -> Promise<{ blob, url }>
 function getFile(item) {
   if (!files.has(item.path)) {
     files.set(item.path, (async () => {
-      const key = item.sha && `https://expressyou.cache/${item.sha}`, c = key && await cache;
+      // Repo files are keyed by git hash; linked GIFs (item.url) by their own address.
+      const key = item.sha ? `https://expressyou.cache/${item.sha}` : item.url, c = key && await cache;
       let res = await c?.match(key);
       if (!res) {
-        res = await fetch(raw(item.path));
+        res = await fetch(item.url ?? raw(item.path));
         if (!res.ok) throw new Error(`Download failed (${res.status}). Try again.`);
         c?.put(key, res.clone()).catch(() => {});
       }
-      const blob = new Blob([await res.arrayBuffer()], { type: TYPES[ext(item.path)] });
+      const blob = new Blob([await res.arrayBuffer()], { type: TYPES[ext(item.name)] });
       return { blob, url: URL.createObjectURL(blob) };
     })().catch(e => { files.delete(item.path); throw e; }));
   }
@@ -80,8 +81,11 @@ function cellFor(item, top) {
   const cell = h('div', { className: top ? 'cell top' : 'cell' });
   const fallback = () => img.replaceWith(h('span', { className: 'alt' }, item.label));
   const img = h('img', { alt: '', decoding: 'async', onerror: fallback });
-  getFile(item).then(f => { img.src = f.url; }, fallback);
-  const named = () => status(item.label), unnamed = () => status(hint);
+  // Linked GIFs show a lighter animated preview, loaded only when scrolled into view; the GIF itself is
+  // fetched on hover so the click sends at once. Repo files show the same download they send.
+  if (item.thumb) Object.assign(img, { loading: 'lazy', src: item.thumb });
+  else getFile(item).then(f => { img.src = f.url; }, fallback);
+  const named = () => { status(item.label); getFile(item).catch(() => {}); }, unnamed = () => status(hint);
   const pick = h('button', { className: 'pick', ariaLabel: `Send ${item.label}`, onclick: () => send(item, cell), onmouseenter: named, onfocus: named, onmouseleave: unnamed, onblur: unnamed }, img);
   const faved = favs.includes(item.path);
   const fav = h('button', { className: 'fav', innerHTML: STAR, ariaPressed: String(faved), title: faved ? 'Remove from favorites' : 'Add to favorites', ariaLabel: `${faved ? 'Remove' : 'Add'} ${item.label} ${faved ? 'from' : 'to'} favorites`, onclick: () => toggleFav(item.path) });
@@ -114,7 +118,7 @@ function render() {
 
 function show(list, pickTab) {
   items = list;
-  tabs = [RECENT, FAVS, ...new Set(items.map(i => i.tab))];
+  tabs = [RECENT, FAVS, ...[...new Set(items.map(i => i.tab))].sort()];
   if (pickTab || !tabs.includes(tab)) tab = recent.length ? RECENT : favs.length ? FAVS : tabs[2] ?? RECENT;
   $('#count').textContent = `${items.length} memes`;
   render();
@@ -135,13 +139,23 @@ async function load() {
     if (!res.ok) throw new Error(`GitHub answered ${res.status}. Try again in a moment.`);
     const json = await res.json();
     if (json.sha === known?.sha) return; // nothing new
-    const list = json.tree
-      .filter(f => f.type === 'blob' && f.path.startsWith('media/') && TYPES[ext(f.path)])
-      .map(f => {
-        const parts = f.path.split('/'), name = parts.at(-1);
-        // "do-i-care-no.jpg" -> "do i care no", so search works with spaces
-        return { path: f.path, sha: f.sha, name, label: name.replace(/\.\w+$/, '').replace(/[-_]/g, ' ').toLowerCase(), tab: parts.length > 2 ? parts[1] : 'other' };
-      });
+    const blobs = json.tree.filter(f => f.type === 'blob' && f.path.startsWith('media/'));
+    const repoFiles = blobs.filter(f => TYPES[ext(f.path)]).map(f => {
+      const parts = f.path.split('/'), name = parts.at(-1);
+      // "do-i-care-no.jpg" -> "do i care no", so search works with spaces
+      return { path: f.path, sha: f.sha, name, label: name.replace(/\.\w+$/, '').replace(/[-_]/g, ' ').toLowerCase(), tab: parts.length > 2 ? parts[1] : 'other' };
+    });
+    // media/<tab>/*.json lists GIFs hosted elsewhere: [{ "name": "...", "url": "...gif", "thumb": "...webp" }].
+    const links = await Promise.all(blobs.filter(f => /^media\/[^/]+\/[^/]+\.json$/.test(f.path)).map(async f => {
+      try {
+        const tab = f.path.split('/')[1];
+        return (await (await fetch(raw(f.path))).json()).filter(l => l.url && TYPES[ext(l.url)]).map(l => ({
+          path: l.url, url: l.url, thumb: l.thumb, label: l.name.toLowerCase(), tab,
+          name: `${l.name.trim().replace(/\s+/g, '-')}.${ext(l.url)}`,
+        }));
+      } catch { return []; } // one broken list shouldn't hide everything else
+    }));
+    const list = [...repoFiles, ...links.flat()];
     save({ tree: { repo: REPO, sha: json.sha, items: list } });
     show(list, !known);
   } catch (e) {
@@ -168,6 +182,7 @@ $('#grid').onkeydown = e => {
   (picks[i + step] ?? (i + step < 0 ? $('#q') : null))?.focus();
 };
 $('#tabs').onscroll = fadeTabs;
+$('#tabs').onwheel = e => { if (e.deltaY) { e.preventDefault(); $('#tabs').scrollLeft += e.deltaY; } }; // mouse wheel scrolls the tab strip
 addEventListener('keydown', e => {
   // In the chat panel, Esc closes it (the first Esc clears a search, like any search box).
   if (e.key === 'Escape' && EMBEDDED && !$('#q').value) return parent.postMessage({ expressyou: 'close' }, PARENT);
