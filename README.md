@@ -1,4 +1,4 @@
-# GIF & Emoji
+# ExpressYou
 
 Chrome/Edge extension that sends my own GIFs and emojis on **Instagram Web**, **Discord Web** and **WhatsApp Web**.
 The media lives in this repo, so adding a new GIF is just a commit — no extension update needed.

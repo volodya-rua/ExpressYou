@@ -1,5 +1,5 @@
 // Public repo that holds the media/ folder. Change this if you fork or rename it.
-const REPO = 'volodya-rua/gif-emoji';
+const REPO = 'volodya-rua/ExpressYou';
 const TYPES = { gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 
 const $ = s => document.querySelector(s);
