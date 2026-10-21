@@ -8,15 +8,27 @@ const PICKER_ORIGIN = new URL(PICKER).origin;
 const host = document.createElement('div');
 const root = host.attachShadow({ mode: 'closed' }); // keeps the site's CSS out of our button
 root.innerHTML = `<style>
-  button { position: fixed; z-index: 2147483647; width: 26px; height: 26px; padding: 0; display: grid; place-items: center; border: 2px solid #111; border-radius: 0; background: #f2b8c6; cursor: pointer; }
-  button:hover, button[aria-expanded="true"] { background: #fff; }
-  button:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+  /* At rest it wears the site's own icon colour (set from the message box's text colour) so it sits
+     with the mic and image icons; on hover or while open the bubble fills with ExpressYou pink. */
+  button { position: fixed; z-index: 2147483647; width: 30px; height: 30px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; opacity: .82; transition: opacity .15s, transform .12s cubic-bezier(.16, 1, .3, 1); }
+  button:hover, button[aria-expanded="true"] { opacity: 1; --fill: #f2b8c6; --line: #111; }
+  button:active { transform: scale(.88); }
+  button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+  svg { width: 24px; height: 24px; overflow: visible; }
+  .bubble { fill: var(--fill, transparent); stroke: var(--line, currentColor); transition: fill .15s, stroke .15s; }
+  .face { stroke: var(--line, currentColor); transition: stroke .15s; }
+  .eye { fill: var(--line, currentColor); transition: fill .15s; }
+  @media (prefers-reduced-motion: reduce) { button, .bubble, .face, .eye { transition: none; } button:active { transform: none; } }
   iframe { position: fixed; z-index: 2147483647; width: 360px; border: 2px solid #111; background: #f2b8c6; box-shadow: 0 10px 30px rgb(0 0 0 / .35); }
   [hidden] { display: none !important; }
   .notice { position: fixed; z-index: 2147483647; max-width: 300px; padding: 8px 10px; background: #111; color: #fff; font: 600 12px/1.35 system-ui, sans-serif; }
 </style>
 <button type="button" title="ExpressYou memes" aria-label="Open ExpressYou memes" aria-expanded="false">
-  <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="8"/><path d="M6.5 12q3.5 3.5 7 0M7.5 7.5v1M12.5 7.5v1"/></svg>
+  <svg viewBox="0 0 24 24" aria-hidden="true" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path class="bubble" d="M8 3.5h8a5 5 0 0 1 5 5v3.5a5 5 0 0 1-5 5h-4.5L7.5 20.5v-3.7A5 5 0 0 1 3 12V8.5a5 5 0 0 1 5-5z"/>
+    <circle class="eye" cx="9.4" cy="9.4" r="1.25" stroke="none"/><circle class="eye" cx="14.6" cy="9.4" r="1.25" stroke="none"/>
+    <path class="face" fill="none" d="M8.8 12.6q3.2 2.9 6.4 0"/>
+  </svg>
 </button>`;
 const btn = root.querySelector('button');
 let box, panel, isOpen = false;
@@ -29,9 +41,9 @@ const padded = new WeakSet();
 function makeRoom(el) {
   if (padded.has(el)) return;
   padded.add(el);
-  if (parseFloat(getComputedStyle(el).paddingRight) >= 32) return;
+  if (parseFloat(getComputedStyle(el).paddingRight) >= 36) return;
   const width = el.getBoundingClientRect().width;
-  el.style.paddingRight = '32px';
+  el.style.paddingRight = '36px';
   if (el.getBoundingClientRect().width > width + 1) el.style.boxSizing = 'border-box'; // a width:100% box would grow instead
 }
 
@@ -44,9 +56,10 @@ function place() {
   if (btn.hidden) return;
   if (!host.isConnected) document.documentElement.append(host);
   makeRoom(box);
+  btn.style.color = getComputedStyle(box).color; // the site's text colour: light on dark themes, dark on light
   // Right end of the box, centred on its last line so it stays put as a long message grows upward.
-  btn.style.top = `${r.bottom - Math.min(r.height, 36) / 2 - 13}px`;
-  btn.style.left = `${r.right - 29}px`;
+  btn.style.top = `${r.bottom - Math.min(r.height, 36) / 2 - 15}px`;
+  btn.style.left = `${r.right - 27}px`; // icon flush with the box's right edge, so it spaces like the site's icons
 }
 
 // The picker loads once (starting when the pointer reaches the button) and is then only shown and
