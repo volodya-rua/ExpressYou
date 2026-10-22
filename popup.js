@@ -129,7 +129,12 @@ function keyForm(problem) {
 }
 
 const empty = (title, text, ...extra) => h('div', { className: 'empty' }, h('strong', {}, title), text ? h('p', {}, text) : '', ...extra);
-const fadeTabs = () => { const t = $('#tabs'); t.classList.toggle('more', t.scrollLeft + t.clientWidth < t.scrollWidth - 1); };
+// Show each arrow only while there are more categories beyond that end of the bar.
+const updateArrows = () => {
+  const t = $('#tabs');
+  $('.scroll.prev').hidden = t.scrollLeft <= 1;
+  $('.scroll.next').hidden = t.scrollLeft + t.clientWidth >= t.scrollWidth - 1;
+};
 const ghosts = () => Array.from({ length: 9 }, () => h('i', { className: 'ghost' }));
 
 function cellFor(item, top) {
@@ -157,7 +162,9 @@ function gifGrid(q) {
   if (gifs.badKey) return [keyForm(gifs.error)];
   if (gifs.error) return [empty("Can't load GIFs.", gifs.error)];
   if (gifs.q === q && !gifs.items.length) return [empty('No GIFs.', `GIPHY has nothing for “${q}”. Try another word.`)];
-  return gifs.items.length ? gifs.items.map((i, n) => cellFor(i, q && !n)) : ghosts();
+  if (!gifs.items.length) return ghosts();
+  const changeKey = h('button', { className: 'link', onclick: () => { giphyKey = ''; save({ giphyKey: '', trending: null }); gifs = { q: null, items: [] }; render(); } }, 'Change GIPHY key');
+  return [...gifs.items.map((i, n) => cellFor(i, q && !n)), h('div', { className: 'gridfoot' }, changeKey)];
 }
 
 function render() {
@@ -171,7 +178,7 @@ function render() {
     return b;
   }));
   $('#tabs [aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  fadeTabs();
+  updateArrows();
 
   if (onGifs) {
     hint = giphyKey ? `Powered by GIPHY · ${q ? 'Enter sends the first.' : 'Trending now. Type to search.'}` : 'Powered by GIPHY';
@@ -256,8 +263,37 @@ $('#grid').onkeydown = e => {
   e.preventDefault();
   (picks[i + step] ?? (i + step < 0 ? $('#q') : null))?.focus();
 };
-$('#tabs').onscroll = fadeTabs;
-$('#tabs').onwheel = e => { if (e.deltaY) { e.preventDefault(); $('#tabs').scrollLeft += e.deltaY; } }; // mouse wheel scrolls the tab strip
+// Category bar scrolling: arrows, mouse wheel or touchpad (either direction), drag, and arrow keys.
+const strip = $('#tabs');
+strip.onscroll = updateArrows;
+addEventListener('resize', updateArrows);
+$('.scroll.prev').onclick = () => strip.scrollBy({ left: -strip.clientWidth * .7, behavior: 'smooth' });
+$('.scroll.next').onclick = () => strip.scrollBy({ left: strip.clientWidth * .7, behavior: 'smooth' });
+strip.onwheel = e => {
+  if (strip.scrollWidth <= strip.clientWidth) return;
+  e.preventDefault();
+  strip.scrollLeft += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+};
+let drag = null, dragged = false;
+strip.onpointerdown = e => { if (e.button === 0 && e.pointerType === 'mouse') drag = { x: e.clientX, left: strip.scrollLeft }; }; // touch already swipes natively
+addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x;
+  if (!dragged && Math.abs(dx) < 5) return; // a small wobble is still a click
+  dragged = true;
+  strip.classList.add('dragging');
+  strip.scrollLeft = drag.left - dx;
+});
+addEventListener('pointerup', () => { drag = null; strip.classList.remove('dragging'); setTimeout(() => { dragged = false; }); });
+strip.addEventListener('click', e => { if (dragged) e.stopPropagation(); }, true); // the drag's release isn't a tab click
+strip.onkeydown = e => {
+  const tabsNow = [...strip.children], i = tabsNow.indexOf(document.activeElement);
+  const next = tabsNow[i + ({ ArrowRight: 1, ArrowLeft: -1 }[e.key] ?? NaN)];
+  if (i < 0 || !next) return;
+  e.preventDefault();
+  next.focus();
+  next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+};
 addEventListener('keydown', e => {
   // In the chat panel, Esc closes it (the first Esc clears a search, like any search box).
   if (e.key === 'Escape' && EMBEDDED && !$('#q').value) return parent.postMessage({ expressyou: 'close' }, PARENT);

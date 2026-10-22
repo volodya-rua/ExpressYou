@@ -42,8 +42,17 @@
   #q::-webkit-search-cancel-button { -webkit-appearance: none; } /* Esc still clears */
   #q:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-  #tabs { display: flex; border: 2px solid var(--ink); background: var(--panel); overflow-x: auto; scrollbar-width: none; flex-shrink: 0; }
-  #tabs.more { mask-image: linear-gradient(to right, #000 82%, transparent); } /* more tabs off to the right */
+  /* Category bar: scrolls by wheel/touchpad, drag, arrow keys, and the arrow buttons that appear at an end with more beyond it. */
+  .tabbar { position: relative; flex-shrink: 0; }
+  #tabs { display: flex; border: 2px solid var(--ink); background: var(--panel); overflow-x: auto; scrollbar-width: none; scroll-padding-inline: 30px; overscroll-behavior-x: contain; user-select: none; }
+  #tabs.dragging, #tabs.dragging button { cursor: grabbing; }
+  .scroll { position: absolute; top: 2px; bottom: 2px; z-index: 1; width: 28px; padding: 0; display: grid; place-items: center; border: 0; background: var(--panel); color: var(--ink); cursor: pointer; }
+  .scroll[hidden] { display: none; }
+  .scroll.prev { left: 2px; border-right: 2px solid var(--ink); box-shadow: 8px 0 8px -4px var(--panel); }
+  .scroll.next { right: 2px; border-left: 2px solid var(--ink); box-shadow: -8px 0 8px -4px var(--panel); }
+  .scroll:hover { background: var(--tone-faint), var(--panel); }
+  .scroll:focus-visible { outline: 2px solid var(--ink); outline-offset: -4px; }
+  .scroll svg { width: 16px; height: 16px; stroke-width: 2.5; }
   #tabs button { flex: 1 0 auto; padding: 6px 5px; border: 0; border-right: 2px solid var(--ink); background: none; font-weight: 700; cursor: pointer; white-space: nowrap; }
   #tabs button.icon { flex-grow: 0; padding: 4px 9px; line-height: 0; }
   #tabs button svg { width: 17px; height: 17px; }
@@ -79,6 +88,10 @@
   .empty ol { margin: 10px 0 0; padding-left: 20px; line-height: 1.6; }
   .empty a { color: inherit; font-weight: 700; text-underline-offset: 2px; }
   .empty .small { margin-top: 8px; font-size: 12px; }
+  .gridfoot { grid-column: 1 / -1; padding: 6px 0 2px; text-align: right; }
+  .link { padding: 0; border: 0; background: none; color: var(--ink-soft); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  .link:hover { color: var(--ink); }
+  .link:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .keyrow { display: flex; gap: 6px; margin-top: 12px; }
   .keyrow .retry { margin: 0; }
   .key { flex: 1; min-width: 0; padding: 7px 9px; border: 2px solid var(--ink); border-radius: 0; background: var(--panel); color: var(--ink); font: inherit; }
@@ -97,7 +110,11 @@
 </style>
 <header><h1>ExpressYou</h1><span id="count"></span></header>
 <input id="q" type="search" placeholder="Search memes…  (/ or just type)" aria-label="Search memes" autocomplete="off" autofocus>
-<nav id="tabs" aria-label="Categories"></nav>
+<div class="tabbar">
+  <button class="scroll prev" type="button" aria-label="Scroll categories left" title="More categories" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <nav id="tabs" aria-label="Categories"></nav>
+  <button class="scroll next" type="button" aria-label="Scroll categories right" title="More categories" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+</div>
 <main id="grid" aria-label="Memes"></main>
 <footer id="status" role="status" aria-live="polite"></footer>
 <script src="paste.js"></script>

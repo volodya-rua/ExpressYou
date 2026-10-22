@@ -45,8 +45,10 @@ Put files in a folder under `media/` and push. Each folder is a category tab in 
 ```
 media/
   anime/     anime reaction memes
+  cursed/    cursed images
   doodles/   hand-drawn reaction faces
   emoji/     3D emoji memes
+  hype/ lol/ love/ mood/ sad/ shook/   reactions by feeling
   text/      text-only replies (nvm, ugh ...)
 ```
 
