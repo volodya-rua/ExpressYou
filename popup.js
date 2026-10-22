@@ -1,12 +1,10 @@
 // Public repo that holds the media/ folder. Change this if you fork or rename it.
 const REPO = 'volodya-rua/ExpressYou';
 const TYPES = { gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
-// One newsprint paper colour per tab, in tab order: Recent, Favorites, GIFs, then each folder.
+// One newsprint paper colour per tab, in tab order: Recent, Favorites, then each folder.
 const PAPERS = ['#f2b8c6', '#d9e86a', '#c9b8f0', '#f7c59f', '#a8d8ea', '#b8e6c9'];
-const RECENT = 'Recent', FAVS = 'Favorites', GIFS = 'GIFs', MAX_RECENT = 12, COLS = 3; // COLS matches the grid in popup.html
+const RECENT = 'Recent', FAVS = 'Favorites', MAX_RECENT = 12, COLS = 3; // COLS matches the grid in popup.html
 const HINT = 'Click a meme to send it. Arrow keys move, Enter sends.';
-// GIPHY's free key allows 100 calls an hour, so trending is reused for a while and typing waits for a pause.
-const GIPHY = 'https://api.giphy.com/v1/gifs', TRENDING_FOR = 15 * 60e3, TYPING_PAUSE = 350;
 // content.js opens this page in a frame inside the chat; there we hand the file to the page instead of injecting.
 const EMBEDDED = window !== top;
 const PARENT = location.ancestorOrigins?.[0];
@@ -19,23 +17,15 @@ const ext = p => p.split(/[?#]/)[0].split('.').pop().toLowerCase();
 const raw = p => `https://raw.githubusercontent.com/${REPO}/HEAD/${p.split('/').map(encodeURIComponent).join('/')}`;
 const status = (t, alert = false) => { $('#status').textContent = t; $('#status').classList.toggle('alert', alert); };
 const setNight = on => document.documentElement.classList.toggle('night', on);
-let items = [], tabs = [RECENT, FAVS, GIFS], tab = RECENT, recent = [], favs = [], hint = HINT;
-let giphyKey = '', pinned = {}, gifs = { q: null, items: [] }, gifTimer;
+let items = [], tabs = [RECENT, FAVS], tab = RECENT, recent = [], favs = [], hint = HINT;
 
 // chrome.storage is shared by the toolbar popup and the in-chat panel (localStorage would be split per site).
 const store = globalThis.chrome?.storage?.local;
 const saved = async keys => { try { return await store.get(keys); } catch { return {}; } };
 const save = data => store?.set(data).catch(() => {});
-// GIPHY GIFs aren't in the repo, so the ones in Recent or Favorites are kept here to show them again.
-function remember(item) {
-  if (item.path.startsWith('giphy:')) pinned[item.path] = item;
-  const keep = new Set([...recent, ...favs]);
-  for (const p of Object.keys(pinned)) if (!keep.has(p)) delete pinned[p];
-  save({ pinned });
-}
-const saveRecent = item => { recent = [item.path, ...recent.filter(p => p !== item.path)].slice(0, MAX_RECENT); remember(item); return save({ recent }); };
-const toggleFav = item => { favs = favs.includes(item.path) ? favs.filter(p => p !== item.path) : [item.path, ...favs]; remember(item); save({ favs }); render(); };
-const byPath = paths => paths.map(p => items.find(i => i.path === p) ?? pinned[p]).filter(Boolean);
+const saveRecent = item => { recent = [item.path, ...recent.filter(p => p !== item.path)].slice(0, MAX_RECENT); return save({ recent }); };
+const toggleFav = item => { favs = favs.includes(item.path) ? favs.filter(p => p !== item.path) : [item.path, ...favs]; save({ favs }); render(); };
+const byPath = paths => paths.map(p => items.find(i => i.path === p)).filter(Boolean);
 const inTab = t => t === RECENT ? byPath(recent) : t === FAVS ? byPath(favs) : items.filter(i => i.tab === t);
 
 // Each meme is downloaded once and kept in the browser's cache by its git hash (a changed file gets a new
@@ -46,7 +36,7 @@ const files = new Map(); // path -> Promise<{ blob, url }>
 function getFile(item) {
   if (!files.has(item.path)) {
     files.set(item.path, (async () => {
-      // Repo files are keyed by git hash; linked and GIPHY GIFs (item.url) by their own address.
+      // Repo files are keyed by git hash; linked GIFs (item.url) by their own address.
       const key = item.sha ? `https://expressyou.cache/${item.sha}` : item.url, c = key && await cache;
       let res = await c?.match(key);
       if (!res) {
@@ -84,50 +74,6 @@ async function send(item, cell) {
   }
 }
 
-// GIPHY: trending when the search box is empty, otherwise a search. Small animated WebP previews in the
-// grid; the GIF that gets sent is GIPHY's "downsized" one (under 2 MB) so it pastes and uploads fast.
-async function fetchGifs(q) {
-  try {
-    const s = q ? null : (await saved('trending')).trending;
-    let data = s && Date.now() - s.at < TRENDING_FOR ? s.data : null;
-    if (!data) {
-      const res = await fetch(`${GIPHY}/${q ? 'search' : 'trending'}?api_key=${encodeURIComponent(giphyKey)}&limit=36&rating=pg-13${q ? `&q=${encodeURIComponent(q)}` : ''}`);
-      if (res.status === 401 || res.status === 403) throw Object.assign(new Error("GIPHY didn't accept that key. Check it and save it again."), { badKey: true });
-      if (res.status === 429) throw new Error("This key used up GIPHY's 100 searches for the hour. Try again later.");
-      if (!res.ok) throw new Error(`GIPHY answered ${res.status}. Try again in a moment.`);
-      data = (await res.json()).data.map(g => {
-        const title = (g.title || 'gif').replace(/\s+GIF(\s+by\s+.*)?$/i, '').trim() || 'gif';
-        const i = g.images;
-        return { path: `giphy:${g.id}`, url: (i.downsized ?? i.original).url, thumb: (i.fixed_width_downsampled ?? i.fixed_width).webp ?? i.fixed_width.url, label: title.toLowerCase(), name: `${title.replace(/\W+/g, '-').toLowerCase()}.gif`, tab: GIFS };
-      });
-      if (!q) save({ trending: { at: Date.now(), data } });
-    }
-    gifs = { q, items: data };
-  } catch (e) {
-    gifs = { q, items: [], error: e instanceof TypeError ? 'Check your internet connection, then try again.' : e.message, badKey: e.badKey };
-  }
-  if (tab === GIFS && $('#q').value.trim().toLowerCase() === q) render();
-}
-
-function keyForm(problem) {
-  const input = h('input', { className: 'key', type: 'text', placeholder: 'Paste your GIPHY API key', autocomplete: 'off', spellcheck: false, ariaLabel: 'GIPHY API key' });
-  const saveKey = () => {
-    giphyKey = input.value.trim();
-    if (!giphyKey) return input.focus();
-    save({ giphyKey, trending: null });
-    gifs = { q: null, items: [] };
-    render();
-  };
-  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); saveKey(); } };
-  return empty('Search all of GIPHY.', problem ?? 'Trending GIFs and search need a free GIPHY key (one-time setup):',
-    h('ol', {},
-      h('li', {}, 'Open ', h('a', { href: 'https://developers.giphy.com/dashboard/', target: '_blank', rel: 'noreferrer' }, 'developers.giphy.com'), ' and sign in.'),
-      h('li', {}, 'Create an app and pick ', h('b', {}, 'API'), ' (not SDK).'),
-      h('li', {}, 'Copy its key and paste it here.')),
-    h('div', { className: 'keyrow' }, input, h('button', { className: 'retry', onclick: saveKey }, 'Save')),
-    h('p', { className: 'small' }, 'The key stays in this browser only.'));
-}
-
 const empty = (title, text, ...extra) => h('div', { className: 'empty' }, h('strong', {}, title), text ? h('p', {}, text) : '', ...extra);
 // Show each arrow only while there are more categories beyond that end of the bar.
 const updateArrows = () => {
@@ -141,8 +87,8 @@ function cellFor(item, top) {
   const cell = h('div', { className: top ? 'cell top' : 'cell' });
   const fallback = () => img.replaceWith(h('span', { className: 'alt' }, item.label));
   const img = h('img', { alt: '', decoding: 'async', onerror: fallback });
-  // Linked and GIPHY GIFs show a lighter animated preview, loaded only when scrolled into view; the GIF
-  // itself is fetched on hover so the click sends at once. Repo files show the same download they send.
+  // Linked GIFs show a lighter animated preview, loaded only when scrolled into view; the GIF itself is
+  // fetched on hover so the click sends at once. Repo files show the same download they send.
   if (item.thumb) Object.assign(img, { loading: 'lazy', src: item.thumb });
   else getFile(item).then(f => { img.src = f.url; }, fallback);
   const named = () => { status(item.label); getFile(item).catch(() => {}); }, unnamed = () => status(hint);
@@ -153,42 +99,22 @@ function cellFor(item, top) {
   return cell;
 }
 
-function gifGrid(q) {
-  if (!giphyKey) return [keyForm()];
-  if (gifs.q !== q) {
-    clearTimeout(gifTimer);
-    gifTimer = setTimeout(() => fetchGifs(q), q ? TYPING_PAUSE : 0);
-  }
-  if (gifs.badKey) return [keyForm(gifs.error)];
-  if (gifs.error) return [empty("Can't load GIFs.", gifs.error)];
-  if (gifs.q === q && !gifs.items.length) return [empty('No GIFs.', `GIPHY has nothing for “${q}”. Try another word.`)];
-  if (!gifs.items.length) return ghosts();
-  const changeKey = h('button', { className: 'link', onclick: () => { giphyKey = ''; save({ giphyKey: '', trending: null }); gifs = { q: null, items: [] }; render(); } }, 'Change GIPHY key');
-  return [...gifs.items.map((i, n) => cellFor(i, q && !n)), h('div', { className: 'gridfoot' }, changeKey)];
-}
-
 function render() {
-  const q = $('#q').value.trim().toLowerCase(), onGifs = tab === GIFS;
+  const q = $('#q').value.trim().toLowerCase();
   document.documentElement.style.setProperty('--paper', PAPERS[tabs.indexOf(tab) % PAPERS.length]);
-  $('#q').placeholder = onGifs ? 'Search GIPHY…' : 'Search memes…  (/ or just type)';
   $('#tabs').replaceChildren(...tabs.map(t => {
-    const b = h('button', { ariaPressed: String(t === tab && (!q || onGifs)), onclick: () => { tab = t; $('#q').value = ''; render(); } });
+    const b = h('button', { ariaPressed: String(t === tab && !q), onclick: () => { tab = t; $('#q').value = ''; render(); } });
     if (ICONS[t]) Object.assign(b, { innerHTML: ICONS[t], title: t, ariaLabel: t, className: 'icon' });
-    else b.append(t, t === GIFS ? '' : h('span', { className: 'n' }, String(inTab(t).length)));
+    else b.append(t, h('span', { className: 'n' }, String(inTab(t).length)));
     return b;
   }));
   $('#tabs [aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   updateArrows();
 
-  if (onGifs) {
-    hint = giphyKey ? `Powered by GIPHY · ${q ? 'Enter sends the first.' : 'Trending now. Type to search.'}` : 'Powered by GIPHY';
-    $('#grid').replaceChildren(...gifGrid(q));
-    return status(hint);
-  }
   const shown = q ? items.filter(i => i.label.includes(q)) : inTab(tab);
   hint = q && shown.length ? `${shown.length} ${shown.length === 1 ? 'hit' : 'hits'} in all folders. Enter sends the first.` : HINT;
   $('#grid').replaceChildren(...shown.length ? shown.map((i, n) => cellFor(i, q && !n)) : [
-    q ? empty('No hits.', `Nothing is called “${q}”. Try another word, or search GIPHY in the GIFs tab.`)
+    q ? empty('No hits.', `Nothing is called “${q}”. Try another word.`)
       : !items.length ? empty('No memes yet.', 'Add images to a folder under media/ in the repo, then reopen.')
       : tab === FAVS ? empty('No favorites yet.', 'Tap the star on any meme to keep it here.')
       : empty('Nothing yet.', 'Memes you send show up here for next time.'),
@@ -198,18 +124,19 @@ function render() {
 
 function show(list, pickTab) {
   items = list;
-  tabs = [RECENT, FAVS, GIFS, ...[...new Set(items.map(i => i.tab))].sort()];
-  if (pickTab || !tabs.includes(tab)) tab = recent.length ? RECENT : favs.length ? FAVS : tabs[3] ?? RECENT;
+  tabs = [RECENT, FAVS, ...[...new Set(items.map(i => i.tab))].sort()];
+  if (pickTab || !tabs.includes(tab)) tab = recent.length ? RECENT : favs.length ? FAVS : tabs[2] ?? RECENT;
   $('#count').textContent = `${items.length} memes`;
   render();
 }
 
 async function load() {
-  const s = await saved(['recent', 'favs', 'tree', 'giphyKey', 'pinned']);
-  recent = s.recent ?? [];
-  favs = s.favs ?? [];
-  giphyKey = s.giphyKey ?? '';
-  pinned = s.pinned ?? {};
+  const s = await saved(['recent', 'favs', 'tree']);
+  // GIPHY search was removed in 1.6: drop its GIFs from Recent/Favorites and its saved key and results.
+  recent = (s.recent ?? []).filter(p => !p.startsWith('giphy:'));
+  favs = (s.favs ?? []).filter(p => !p.startsWith('giphy:'));
+  store?.remove(['giphyKey', 'trending', 'pinned']).catch(() => {});
+  if (recent.length !== (s.recent ?? []).length || favs.length !== (s.favs ?? []).length) save({ recent, favs });
   const known = s.tree?.repo === REPO ? s.tree : null;
   // Show the saved list right away, then refresh it from GitHub in the background.
   if (known) show(known.items, true);

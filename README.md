@@ -27,17 +27,6 @@ The picker switches to a night edition on dark chats. On any other site, click t
 
 Memes are saved in your browser after the first load, so the picker opens instantly and still works offline. You only need the extension files (`manifest.json`, `background.js`, `popup.html`, `popup.js`, `paste.js`, `content.js`, `fonts/`); the `media/` folder in your download isn't used.
 
-## GIF search (GIPHY)
-
-The **GIFs** tab shows what's trending on GIPHY and searches all of it. It needs a free GIPHY key, once:
-
-1. Go to [developers.giphy.com](https://developers.giphy.com/dashboard/) and sign in (or sign up).
-2. Click **Create an App**, choose **API** (not SDK), give it any name.
-3. Copy the API key, open the **GIFs** tab in the picker, paste it and press **Save**.
-
-The key is saved in your browser only, never in this repo. A free key allows 100 searches an hour,
-so trending is reused for 15 minutes and search waits until you stop typing.
-
 ## Add media
 
 Put files in a folder under `media/` and push. Each folder is a category tab in the picker, so you only see that category.

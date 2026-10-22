@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "ExpressYou",
   "short_name": "ExpressYou",
-  "version": "1.5",
-  "description": "Send your own memes, reactions and GIPHY GIFs in one click, right inside Instagram, Discord, WhatsApp, Telegram, X, Slack and more.",
+  "version": "1.6",
+  "description": "Send your own memes and animated reactions in one click, right inside Instagram, Discord, WhatsApp, Telegram, X, Slack and more.",
   "homepage_url": "https://github.com/volodya-rua/ExpressYou",
   "icons": {
     "16": "icons/16.png",
