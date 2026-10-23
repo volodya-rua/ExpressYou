@@ -23,7 +23,7 @@ Faster:
 - **Arrow keys** move around the grid; **Enter** sends the one you're on. **Esc** closes.
 - **Recent** (clock) keeps what you sent last; the **star** on any meme saves it to **Favorites**.
 
-Memes go out as stickers, not photos: on WhatsApp they're sent through WhatsApp's own sticker maker (paperclip › Sticker), on Telegram as 512×512 WebP stickers, elsewhere as small sticker-sized images that upload in a blink. Animated reactions go as GIFs. The picker turns dark on dark chats. On any other site, click the extension icon (or press **Alt+G**) with the message box focused; the meme is pasted and you press **Enter** to send.
+Memes go out as stickers, not photos: on WhatsApp they're sent through WhatsApp's own sticker maker (paperclip › Sticker), on Telegram as 512×512 WebP stickers, on Instagram and Discord as sticker-sized images (160–200px, since they don't take custom stickers), elsewhere as small images that upload in a blink. Animated reactions go as GIFs. The picker turns dark on dark chats. On any other site, click the extension icon (or press **Alt+G**) with the message box focused; the meme is pasted and you press **Enter** to send.
 
 Memes are saved in your browser after the first load, so the picker opens instantly and still works offline. You only need the extension files (`manifest.json`, `background.js`, `popup.html`, `popup.js`, `paste.js`, `content.js`, `icons/`); the `media/` folder in your download isn't used.
 

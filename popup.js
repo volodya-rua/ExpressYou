@@ -52,11 +52,18 @@ function getFile(item) {
   return files.get(item.path);
 }
 
-// What gets sent depends on where it's going, so it lands like a sticker instead of a full photo:
-// WhatsApp gets a square 512px PNG that content.js hands to WhatsApp's own sticker maker, Telegram a
-// 512×512 WebP sticker, Discord a 200px sticker-sized image, other sites a 320px one. Animated memes
-// stay GIFs. Small files upload in a blink. They're made on hover, so the click sends at once.
-const STICKER_APPS = /(^|\.)(whatsapp\.com|telegram\.org)$/, SMALL_APPS = /(^|\.)discord\.com$/;
+// What gets sent depends on where it's going, so it lands like a sticker instead of a full photo. Each
+// site gets a long side in px and a format; square pads it to a square on transparency. WhatsApp's PNG goes
+// to WhatsApp's own sticker maker (content.js); Telegram takes a WebP sticker; Instagram and Discord can't
+// take custom stickers, so they get a sticker-sized image (their own stickers show at about 160-200px).
+// Animated memes stay GIFs. Small files upload in a blink. They're made on hover, so the click sends at once.
+const FORMATS = [
+  [/(^|\.)whatsapp\.com$/, { side: 512, square: true, type: 'image/png' }],
+  [/(^|\.)telegram\.org$/, { side: 512, square: true, type: 'image/webp' }],
+  [/(^|\.)instagram\.com$/, { side: 160, type: 'image/png' }],
+  [/(^|\.)discord\.com$/, { side: 200, type: 'image/webp' }],
+];
+const formatFor = blob => FORMATS.find(([site]) => site.test(host))?.[1] ?? { side: 320, type: blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/png' };
 let host = EMBEDDED && PARENT ? new URL(PARENT).hostname : '';
 const stickers = new Map(); // path|host -> Promise<{ blob, name }>
 function stickerFor(item) {
@@ -65,17 +72,16 @@ function stickerFor(item) {
   return stickers.get(key);
 }
 async function makeSticker(item) {
-  const base = item.name.replace(/\.\w+$/, ''), sticker = STICKER_APPS.test(host), small = SMALL_APPS.test(host);
-  const { blob } = await getFile(item);
+  const base = item.name.replace(/\.\w+$/, ''), { blob } = await getFile(item);
   if (item.url || blob.type === 'image/gif') return { blob, name: item.name }; // animated: the GIF, which every chat plays
-  const bmp = await createImageBitmap(blob), side = Math.max(bmp.width, bmp.height);
-  const scale = sticker ? 512 / side : Math.min(1, (small ? 200 : 320) / side);
+  const { side, square, type } = formatFor(blob), bmp = await createImageBitmap(blob), long = Math.max(bmp.width, bmp.height);
+  const scale = square ? side / long : Math.min(1, side / long);
   const w = Math.round(bmp.width * scale), hgt = Math.round(bmp.height * scale);
-  const canvas = new OffscreenCanvas(sticker ? 512 : w, sticker ? 512 : hgt); // stickers are square, centred on transparency
-  canvas.getContext('2d').drawImage(bmp, sticker ? (512 - w) / 2 : 0, sticker ? (512 - hgt) / 2 : 0, w, hgt);
-  const type = /(^|\.)whatsapp\.com$/.test(host) ? 'image/png' : sticker || small ? 'image/webp' : blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+  const canvas = new OffscreenCanvas(square ? side : w, square ? side : hgt), ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high'; // keeps meme text readable when shrunk to sticker size
+  ctx.drawImage(bmp, square ? (side - w) / 2 : 0, square ? (side - hgt) / 2 : 0, w, hgt);
   let out, quality = .85;
-  do { out = await canvas.convertToBlob({ type, quality }); quality -= .15; } while (type === 'image/webp' && sticker && out.size > 100e3 && quality > .3); // the 100 KB sticker limit
+  do { out = await canvas.convertToBlob({ type, quality }); quality -= .15; } while (type === 'image/webp' && square && out.size > 100e3 && quality > .3); // the 100 KB sticker limit
   return { blob: out, name: `${base}.${{ 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' }[type]}` };
 }
 
