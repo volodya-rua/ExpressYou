@@ -1,9 +1,7 @@
 // Public repo that holds the media/ folder. Change this if you fork or rename it.
 const REPO = 'volodya-rua/ExpressYou';
 const TYPES = { gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
-// One newsprint paper colour per tab, in tab order: Recent, Favorites, then each folder.
-const PAPERS = ['#f2b8c6', '#d9e86a', '#c9b8f0', '#f7c59f', '#a8d8ea', '#b8e6c9'];
-const RECENT = 'Recent', FAVS = 'Favorites', MAX_RECENT = 12, COLS = 3; // COLS matches the grid in popup.html
+const RECENT = 'Recent', FAVS = 'Favorites', MAX_RECENT = 12, COLS = 4; // COLS matches the grid in popup.html
 const HINT = 'Click a meme to send it. Arrow keys move, Enter sends.';
 // content.js opens this page in a frame inside the chat; there we hand the file to the page instead of injecting.
 const EMBEDDED = window !== top;
@@ -32,39 +30,76 @@ const inTab = t => t === RECENT ? byPath(recent) : t === FAVS ? byPath(favs) : i
 // hash), so the grid shows instantly on later opens, even offline, and a pick never waits on the network.
 // ponytail: cached copies of deleted memes are never pruned; clear the cache if the repo ever gets huge
 const cache = globalThis.caches?.open('expressyou-memes').catch(() => null);
+async function fetchCached(url, key) {
+  const c = key && await cache;
+  let res = await c?.match(key);
+  if (!res) {
+    res = await fetch(url);
+    if (!res.ok) throw new Error(`Download failed (${res.status}). Try again.`);
+    c?.put(key, res.clone()).catch(() => {});
+  }
+  return res.arrayBuffer();
+}
 const files = new Map(); // path -> Promise<{ blob, url }>
 function getFile(item) {
   if (!files.has(item.path)) {
-    files.set(item.path, (async () => {
-      // Repo files are keyed by git hash; linked GIFs (item.url) by their own address.
-      const key = item.sha ? `https://expressyou.cache/${item.sha}` : item.url, c = key && await cache;
-      let res = await c?.match(key);
-      if (!res) {
-        res = await fetch(item.url ?? raw(item.path));
-        if (!res.ok) throw new Error(`Download failed (${res.status}). Try again.`);
-        c?.put(key, res.clone()).catch(() => {});
-      }
-      const blob = new Blob([await res.arrayBuffer()], { type: TYPES[ext(item.name)] });
+    // Repo files are keyed by git hash; linked GIFs (item.url) by their own address.
+    files.set(item.path, fetchCached(item.url ?? raw(item.path), item.sha ? `https://expressyou.cache/${item.sha}` : item.url).then(buf => {
+      const blob = new Blob([buf], { type: TYPES[ext(item.name)] });
       return { blob, url: URL.createObjectURL(blob) };
-    })().catch(e => { files.delete(item.path); throw e; }));
+    }).catch(e => { files.delete(item.path); throw e; }));
   }
   return files.get(item.path);
+}
+
+// What gets sent depends on where it's going, so it lands like a sticker instead of a full photo:
+// WhatsApp and Telegram get real stickers (512×512 WebP, animated for the reactions), Discord a 200px
+// sticker-sized image, other sites a 320px one. Small files upload in a blink. They're made on hover,
+// so the click sends at once.
+const STICKER_APPS = /(^|\.)(whatsapp\.com|telegram\.org)$/, SMALL_APPS = /(^|\.)discord\.com$/;
+let host = EMBEDDED && PARENT ? new URL(PARENT).hostname : '';
+const stickers = new Map(); // path|host -> Promise<{ blob, name }>
+function stickerFor(item) {
+  const key = `${item.path}|${host}`;
+  if (!stickers.has(key)) stickers.set(key, makeSticker(item).catch(e => { stickers.delete(key); throw e; }));
+  return stickers.get(key);
+}
+async function makeSticker(item) {
+  const base = item.name.replace(/\.\w+$/, ''), sticker = STICKER_APPS.test(host), small = SMALL_APPS.test(host);
+  if (item.url) { // the animated reactions: on WhatsApp, Google's animated WebP is already a 512px sticker
+    if (/(^|\.)whatsapp\.com$/.test(host) && item.thumb?.endsWith('.webp')) {
+      const buf = await fetchCached(item.thumb, item.thumb);
+      if (buf.byteLength <= 500e3) return { blob: new Blob([buf], { type: 'image/webp' }), name: `${base}.webp` }; // WhatsApp's animated sticker limit
+    }
+    return { blob: (await getFile(item)).blob, name: item.name }; // otherwise the GIF, which every chat animates
+  }
+  const { blob } = await getFile(item);
+  if (blob.type === 'image/gif') return { blob, name: item.name }; // keep the animation
+  const bmp = await createImageBitmap(blob), side = Math.max(bmp.width, bmp.height);
+  const scale = sticker ? 512 / side : Math.min(1, (small ? 200 : 320) / side);
+  const w = Math.round(bmp.width * scale), hgt = Math.round(bmp.height * scale);
+  const canvas = new OffscreenCanvas(sticker ? 512 : w, sticker ? 512 : hgt); // stickers are square, centred on transparency
+  canvas.getContext('2d').drawImage(bmp, sticker ? (512 - w) / 2 : 0, sticker ? (512 - hgt) / 2 : 0, w, hgt);
+  const type = sticker || small ? 'image/webp' : blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+  let out, quality = .85;
+  do { out = await canvas.convertToBlob({ type, quality }); quality -= .15; } while (sticker && out.size > 100e3 && quality > .3); // WhatsApp's sticker size limit
+  return { blob: out, name: `${base}.${{ 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' }[type]}` };
 }
 
 async function send(item, cell) {
   cell.classList.add('sending');
   status('Sending…');
   try {
-    const { blob } = await getFile(item);
+    const { blob, name } = await stickerFor(item);
     const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
     if (EMBEDDED) {
       saveRecent(item); // not awaited: the storage write is already on its way
-      return parent.postMessage({ expressyou: 'paste', dataUrl, name: item.name }, PARENT);
+      return parent.postMessage({ expressyou: 'paste', dataUrl, name }, PARENT);
     }
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
     // Supported chat sites run content.js, which knows the box and sends; anywhere else we only paste.
-    let ok = await chrome.tabs.sendMessage(active.id, { expressyou: 'paste', dataUrl, name: item.name }).catch(() => undefined);
-    if (ok === undefined) ok = (await chrome.scripting.executeScript({ target: { tabId: active.id }, func: pasteFile, args: [dataUrl, item.name] }))[0].result;
+    let ok = await chrome.tabs.sendMessage(active.id, { expressyou: 'paste', dataUrl, name }).catch(() => undefined);
+    if (ok === undefined) ok = (await chrome.scripting.executeScript({ target: { tabId: active.id }, func: pasteFile, args: [dataUrl, name] }))[0].result;
     if (!ok) throw new Error('No message box here. Click into a chat first, then pick again.');
     await saveRecent(item);
     window.close();
@@ -81,7 +116,7 @@ const updateArrows = () => {
   $('.scroll.prev').hidden = t.scrollLeft <= 1;
   $('.scroll.next').hidden = t.scrollLeft + t.clientWidth >= t.scrollWidth - 1;
 };
-const ghosts = () => Array.from({ length: 9 }, () => h('i', { className: 'ghost' }));
+const ghosts = () => Array.from({ length: 16 }, () => h('i', { className: 'ghost' }));
 
 function cellFor(item, top) {
   const cell = h('div', { className: top ? 'cell top' : 'cell' });
@@ -91,7 +126,7 @@ function cellFor(item, top) {
   // fetched on hover so the click sends at once. Repo files show the same download they send.
   if (item.thumb) Object.assign(img, { loading: 'lazy', src: item.thumb });
   else getFile(item).then(f => { img.src = f.url; }, fallback);
-  const named = () => { status(item.label); getFile(item).catch(() => {}); }, unnamed = () => status(hint);
+  const named = () => { status(item.label); stickerFor(item).catch(() => {}); }, unnamed = () => status(hint);
   const pick = h('button', { className: 'pick', ariaLabel: `Send ${item.label}`, onclick: () => send(item, cell), onmouseenter: named, onfocus: named, onmouseleave: unnamed, onblur: unnamed }, img);
   const faved = favs.includes(item.path);
   const fav = h('button', { className: 'fav', innerHTML: STAR, ariaPressed: String(faved), title: faved ? 'Remove from favorites' : 'Add to favorites', ariaLabel: `${faved ? 'Remove' : 'Add'} ${item.label} ${faved ? 'from' : 'to'} favorites`, onclick: () => toggleFav(item) });
@@ -101,7 +136,6 @@ function cellFor(item, top) {
 
 function render() {
   const q = $('#q').value.trim().toLowerCase();
-  document.documentElement.style.setProperty('--paper', PAPERS[tabs.indexOf(tab) % PAPERS.length]);
   $('#tabs').replaceChildren(...tabs.map(t => {
     const b = h('button', { ariaPressed: String(t === tab && !q), onclick: () => { tab = t; $('#q').value = ''; render(); } });
     if (ICONS[t]) Object.assign(b, { innerHTML: ICONS[t], title: t, ariaLabel: t, className: 'icon' });
@@ -122,7 +156,15 @@ function render() {
   status(hint);
 }
 
+// Pull every repo meme into the cache in the background, a few at a time, so any tab opens instantly.
+async function warmUp() {
+  const queue = items.filter(i => i.sha && !files.has(i.path));
+  const worker = async () => { for (let i; (i = queue.shift());) await getFile(i).catch(() => {}); };
+  await Promise.all([worker(), worker(), worker()]);
+}
+
 function show(list, pickTab) {
+  setTimeout(warmUp, 300);
   items = list;
   tabs = [RECENT, FAVS, ...[...new Set(items.map(i => i.tab))].sort()];
   if (pickTab || !tabs.includes(tab)) tab = recent.length ? RECENT : favs.length ? FAVS : tabs[2] ?? RECENT;
@@ -236,5 +278,7 @@ addEventListener('message', e => {
   if (items.length) render();
   $('#q').focus();
 });
+// The toolbar popup sends to the active tab, so its site decides the sticker format.
+if (!EMBEDDED) globalThis.chrome?.tabs?.query({ active: true, currentWindow: true }).then(([t]) => { host = t?.url ? new URL(t.url).hostname : ''; }).catch(() => {});
 $('#q').focus(); // autofocus is ignored inside a frame
 load();

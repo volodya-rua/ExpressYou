@@ -23,9 +23,9 @@ Faster:
 - **Arrow keys** move around the grid; **Enter** sends the one you're on. **Esc** closes.
 - **Recent** (clock) keeps what you sent last; the **star** on any meme saves it to **Favorites**.
 
-The picker switches to a night edition on dark chats. On any other site, click the extension icon (or press **Alt+G**) with the message box focused; the meme is pasted and you press **Enter** to send.
+Memes go out as small sticker files, so they send fast: real stickers (512×512 WebP) on WhatsApp and Telegram, sticker-sized images elsewhere. The picker turns dark on dark chats. On any other site, click the extension icon (or press **Alt+G**) with the message box focused; the meme is pasted and you press **Enter** to send.
 
-Memes are saved in your browser after the first load, so the picker opens instantly and still works offline. You only need the extension files (`manifest.json`, `background.js`, `popup.html`, `popup.js`, `paste.js`, `content.js`, `fonts/`); the `media/` folder in your download isn't used.
+Memes are saved in your browser after the first load, so the picker opens instantly and still works offline. You only need the extension files (`manifest.json`, `background.js`, `popup.html`, `popup.js`, `paste.js`, `content.js`, `icons/`); the `media/` folder in your download isn't used.
 
 ## Add media
 

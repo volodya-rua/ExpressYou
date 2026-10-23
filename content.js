@@ -26,7 +26,7 @@ root.innerHTML = `<style>
   .bubble { fill: var(--fill, transparent); stroke: var(--line, currentColor); transition: fill .15s, stroke .15s; }
   .face { stroke: var(--line, currentColor); transition: stroke .15s; }
   .eye { fill: var(--line, currentColor); transition: fill .15s; }
-  iframe { position: fixed; z-index: 2147483647; width: 360px; border: 2px solid; box-shadow: 0 10px 30px rgb(0 0 0 / .35); transform-origin: bottom right; }
+  iframe { position: fixed; z-index: 2147483647; width: 360px; border: 1px solid; border-radius: 16px; box-shadow: 0 16px 40px rgb(0 0 0 / .35), 0 2px 8px rgb(0 0 0 / .2); transform-origin: bottom right; }
   iframe.pop { animation: pop .18s cubic-bezier(.16, 1, .3, 1); }
   @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } }
   @media (prefers-reduced-motion: reduce) { button, .bubble, .face, .eye { transition: none; } button:active { transform: none; } iframe.pop { animation: none; } }
@@ -98,8 +98,8 @@ function openPanel() {
     height: `${height}px`,
     top: `${Math.max(8, r.top - height - 8)}px`,
     left: `${Math.max(8, Math.min(innerWidth - 372, r.right - 364))}px`,
-    background: night ? '#0b0b0b' : '#f2b8c6',
-    borderColor: night ? '#ece8e1' : '#111',
+    background: night ? '#1b1c20' : '#ffffff', // matches the picker's own background, so there's no flash
+    borderColor: night ? 'rgb(255 255 255 / .1)' : 'rgb(0 0 0 / .1)',
   });
   panel.hidden = false;
   panel.classList.remove('pop');

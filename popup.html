@@ -2,103 +2,129 @@
 <meta charset="utf-8">
 <title>ExpressYou</title>
 <style>
-  @font-face { font-family: 'Dela Gothic One'; src: url(fonts/DelaGothicOne-latin.woff2) format('woff2'); font-display: swap; }
+  /* A clean sticker panel: neutral surfaces, rounded tiles, one pink accent. Dark on dark chats
+     (content.js says which), light on light ones; the toolbar popup follows the system. */
   :root {
     color-scheme: light;
-    --ink: #111;
-    --ink-soft: color-mix(in srgb, var(--ink) 72%, transparent);
-    --panel: #fff;
-    --paper: #f2b8c6; /* re-tinted per tab by popup.js */
-    --ground: var(--paper);
-    --accent: var(--ink);
-    --tone: radial-gradient(var(--ink) 1px, transparent 1.3px) 0 0 / 5px 5px;
-    --tone-faint: radial-gradient(color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1.3px) 0 0 / 5px 5px;
+    --bg: #ffffff;
+    --surface: #f2f3f5;
+    --surface-2: #e6e7eb;
+    --text: #17181b;
+    --muted: #63666d;
+    --line: rgb(0 0 0 / .08);
+    --accent: #d6336c;
+    --accent-soft: rgb(214 51 108 / .11);
+    --shade: rgb(0 0 0 / .55);
     --ease: cubic-bezier(.16, 1, .3, 1);
-    font: 13px/1.35 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    background: var(--ground);
-    transition: background-color .3s var(--ease);
+    font: 13px/1.4 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
   }
-  /* Night edition for dark chats: the same newsprint re-inked, light rules on dark stock tinted by the tab's paper. */
   :root.night {
     color-scheme: dark;
-    --ink: #ece8e1;
-    --panel: #151515;
-    --ground: color-mix(in srgb, var(--paper) 15%, #0b0b0b);
-    --accent: var(--paper);
+    --bg: #1b1c20;
+    --surface: #26272d;
+    --surface-2: #31323a;
+    --text: #ececf0;
+    --muted: #9a9ca5;
+    --line: rgb(255 255 255 / .08);
+    --accent: #ff7aa8;
+    --accent-soft: rgb(255 122 168 / .15);
+    --shade: rgb(0 0 0 / .6);
   }
   * { box-sizing: border-box; }
-  ::selection { background: var(--ink); color: var(--panel); }
+  ::selection { background: var(--accent); color: #fff; }
   .embedded body { width: auto; height: 100vh; } /* in-chat panel: content.js sizes the frame */
-  body { width: 360px; height: 560px; margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 10px; color: var(--ink); }
+  body { width: 360px; height: 560px; margin: 0; padding: 12px 12px 8px; display: flex; flex-direction: column; gap: 10px; color: var(--text); }
   button { font: inherit; color: inherit; }
   svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-  header { display: flex; align-items: baseline; justify-content: space-between; }
-  h1 { margin: 0; font: 22px/1 'Dela Gothic One', system-ui, sans-serif; letter-spacing: -.01em; color: var(--accent); transition: color .3s var(--ease); }
-  #count { font-weight: 700; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  header { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
+  header .mark { width: 22px; height: 22px; flex: none; }
+  header .mark .bubble { fill: #f2b8c6; stroke: #17181b; }
+  header .mark .face { stroke: #17181b; }
+  header .mark .eye { fill: #17181b; stroke: none; }
+  h1 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
+  #count { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-  #q { width: 100%; padding: 8px 10px; border: 2px solid var(--ink); border-radius: 0; background: var(--panel); font: inherit; color: var(--ink); caret-color: var(--ink); }
-  #q::placeholder { color: var(--ink-soft); }
+  .search { position: relative; }
+  .search svg { position: absolute; left: 11px; top: 50%; width: 16px; height: 16px; translate: 0 -50%; color: var(--muted); pointer-events: none; }
+  #q { width: 100%; height: 36px; padding: 0 12px 0 34px; border: 0; border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; caret-color: var(--accent); }
+  #q::placeholder { color: var(--muted); }
   #q::-webkit-search-cancel-button { -webkit-appearance: none; } /* Esc still clears */
-  #q:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  #q:focus { outline: none; box-shadow: 0 0 0 2px var(--accent); }
 
-  /* Category bar: scrolls by wheel/touchpad, drag, arrow keys, and the arrow buttons that appear at an end with more beyond it. */
+  /* Category chips: scroll by wheel/touchpad, drag, arrow keys, and the arrow buttons at an end with more beyond it. */
   .tabbar { position: relative; flex-shrink: 0; }
-  #tabs { display: flex; border: 2px solid var(--ink); background: var(--panel); overflow-x: auto; scrollbar-width: none; scroll-padding-inline: 30px; overscroll-behavior-x: contain; user-select: none; }
+  #tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; scroll-padding-inline: 36px; overscroll-behavior-x: contain; user-select: none; }
+  #tabs:empty { display: none; }
   #tabs.dragging, #tabs.dragging button { cursor: grabbing; }
-  .scroll { position: absolute; top: 2px; bottom: 2px; z-index: 1; width: 28px; padding: 0; display: grid; place-items: center; border: 0; background: var(--panel); color: var(--ink); cursor: pointer; }
+  #tabs button { flex: none; height: 30px; padding: 0 11px; display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 15px; background: none; color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color .15s, color .15s; }
+  #tabs button.icon { width: 30px; padding: 0; justify-content: center; }
+  #tabs button svg { width: 16px; height: 16px; }
+  #tabs button:hover { background: var(--surface); color: var(--text); }
+  #tabs button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+  #tabs .n { font-size: 11px; font-weight: 500; opacity: .7; font-variant-numeric: tabular-nums; }
+  #tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .scroll { position: absolute; top: 0; z-index: 1; width: 30px; height: 30px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--surface); color: var(--text); cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / .2); }
   .scroll[hidden] { display: none; }
-  .scroll.prev { left: 2px; border-right: 2px solid var(--ink); box-shadow: 8px 0 8px -4px var(--panel); }
-  .scroll.next { right: 2px; border-left: 2px solid var(--ink); box-shadow: -8px 0 8px -4px var(--panel); }
-  .scroll:hover { background: var(--tone-faint), var(--panel); }
-  .scroll:focus-visible { outline: 2px solid var(--ink); outline-offset: -4px; }
-  .scroll svg { width: 16px; height: 16px; stroke-width: 2.5; }
-  #tabs button { flex: 1 0 auto; padding: 6px 5px; border: 0; border-right: 2px solid var(--ink); background: none; font-weight: 700; cursor: pointer; white-space: nowrap; }
-  #tabs button.icon { flex-grow: 0; padding: 4px 9px; line-height: 0; }
-  #tabs button svg { width: 17px; height: 17px; }
-  #tabs button:last-child { border-right: 0; }
-  #tabs button:hover { background: var(--tone-faint); }
-  /* manga lettering over screentone: the whole tab is toned, the label is knocked out with a halo */
-  #tabs button[aria-pressed="true"] { background: var(--tone), var(--panel); color: var(--accent); text-shadow: 0 0 2px var(--panel), 0 0 2px var(--panel), 0 0 3px var(--panel), 0 0 4px var(--panel), 0 0 5px var(--panel); }
-  #tabs button[aria-pressed="true"] svg { filter: drop-shadow(0 0 1.5px var(--panel)) drop-shadow(0 0 1.5px var(--panel)); }
-  #tabs button[aria-pressed="true"] .n { color: inherit; }
-  #tabs .n { margin-left: 3px; font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-  #tabs button:focus-visible { outline: 2px solid var(--ink); outline-offset: -5px; }
+  .scroll.prev { left: 0; }
+  .scroll.next { right: 0; }
+  .scroll::before { content: ''; position: absolute; top: 0; bottom: 0; width: 28px; pointer-events: none; }
+  .scroll.prev::before { left: 100%; background: linear-gradient(to right, var(--bg), transparent); }
+  .scroll.next::before { right: 100%; background: linear-gradient(to left, var(--bg), transparent); }
+  .scroll:hover { background: var(--surface-2); }
+  .scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .scroll svg { width: 15px; height: 15px; stroke-width: 2.5; }
 
-  #grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; align-content: start; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--ink) transparent; padding: 1px; }
-  .cell, .ghost { position: relative; aspect-ratio: 1; border: 2px solid var(--ink); background: var(--panel); }
-  .cell:hover, .cell:focus-within, .cell.top { box-shadow: inset 0 0 0 3px var(--panel), inset 0 0 0 5px var(--ink); }
-  .pick { display: block; width: 100%; height: 100%; padding: 6px; border: 0; background: none; cursor: pointer; }
-  .pick:focus-visible { outline: none; } /* the cell's double rule shows focus */
-  .pick img { display: block; width: 100%; height: 100%; object-fit: contain; }
-  .pick .alt { font-weight: 700; font-size: 12px; }
-  .fav { position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; background: var(--panel); cursor: pointer; opacity: 0; transition: opacity .12s; }
-  .fav svg { width: 16px; height: 16px; }
+  #grid { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-content: start; overflow-y: auto; margin: 0 -4px; padding: 2px 4px 4px; scrollbar-width: thin; scrollbar-color: var(--surface-2) transparent; }
+  .cell, .ghost { position: relative; aspect-ratio: 1; border-radius: 12px; background: var(--surface); }
+  .cell { transition: background-color .15s, transform .15s var(--ease); }
+  .cell:hover, .cell.top { background: var(--surface-2); }
+  .cell:has(.pick:focus-visible), .cell.top { box-shadow: 0 0 0 2px var(--accent); }
+  .pick { display: block; width: 100%; height: 100%; padding: 5px; border: 0; background: none; cursor: pointer; }
+  .pick:focus-visible { outline: none; }
+  .pick img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 6px; transition: transform .18s var(--ease); }
+  .cell:hover .pick img { transform: scale(1.07); }
+  .cell:active { transform: scale(.94); }
+  .pick .alt { font-size: 11px; font-weight: 600; color: var(--muted); }
+  .fav { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--shade); color: #fff; cursor: pointer; opacity: 0; transition: opacity .12s, transform .12s var(--ease); }
+  .fav svg { width: 13px; height: 13px; }
   .cell:hover .fav, .cell:focus-within .fav, .fav[aria-pressed="true"] { opacity: 1; }
+  .fav[aria-pressed="true"] { color: #ffd166; }
   .fav[aria-pressed="true"] svg { fill: currentColor; }
-  .fav:hover svg { transform: scale(1.15); }
-  .fav:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-  .cell.sending::after { content: ''; position: absolute; inset: 0; background: var(--tone); animation: sweep .45s var(--ease) both; }
-  @keyframes sweep { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
-  .ghost { background: var(--tone-faint), var(--panel); }
+  .fav:hover { transform: scale(1.12); }
+  .fav:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  /* the pick: a quick pop with an accent ring, like a sticker going out */
+  .cell.sending { box-shadow: 0 0 0 2px var(--accent); animation: pop .3s var(--ease); }
+  @keyframes pop { 40% { transform: scale(.88); } }
+  .ghost { overflow: hidden; }
+  .ghost::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, var(--surface-2) 50%, transparent 80%); animation: shimmer 1.2s infinite; }
+  @keyframes shimmer { from { translate: -100% 0; } to { translate: 100% 0; } }
 
-  .empty { grid-column: 1 / -1; padding: 28px 4px; }
-  .empty strong { display: block; font: 24px/1.1 'Dela Gothic One', system-ui, sans-serif; color: var(--accent); }
-  .empty p { margin: 6px 0 0; color: var(--ink-soft); }
-  .retry { margin-top: 14px; padding: 7px 14px; border: 2px solid var(--ink); background: var(--ink); color: var(--panel); font-weight: 700; cursor: pointer; }
-  .retry:hover { background: var(--panel); color: var(--ink); }
-  .retry:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .empty { grid-column: 1 / -1; padding: 40px 12px; text-align: center; }
+  .empty strong { display: block; font-size: 15px; font-weight: 650; }
+  .empty p { margin: 4px 0 0; color: var(--muted); }
+  .retry { margin-top: 14px; height: 32px; padding: 0 16px; border: 0; border-radius: 16px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  .retry:hover { filter: brightness(1.08); }
+  .retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  #status { min-height: 18px; font-size: 12px; font-weight: 600; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #status.alert { padding: 6px 8px; background: var(--ink); color: var(--panel); white-space: normal; }
+  #status { min-height: 18px; padding: 0 2px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status.alert { padding: 7px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-weight: 600; white-space: normal; }
 
   @media (prefers-reduced-motion: reduce) {
-    :root, h1, .fav { transition: none; }
-    .cell.sending::after { animation: none; }
+    .cell, .pick img, .fav, #tabs button { transition: none; }
+    .cell.sending, .ghost::after { animation: none; }
+    .cell:hover .pick img, .cell:active { transform: none; }
   }
 </style>
-<header><h1>ExpressYou</h1><span id="count"></span></header>
-<input id="q" type="search" placeholder="Search memes…  (/ or just type)" aria-label="Search memes" autocomplete="off" autofocus>
+<header>
+  <svg class="mark" viewBox="0 0 24 24" aria-hidden="true" stroke-width="1.9"><path class="bubble" d="M8 3.5h8a5 5 0 0 1 5 5v3.5a5 5 0 0 1-5 5h-4.5L7.5 20.5v-3.7A5 5 0 0 1 3 12V8.5a5 5 0 0 1 5-5z"/><circle class="eye" cx="9.4" cy="9.4" r="1.3"/><circle class="eye" cx="14.6" cy="9.4" r="1.3"/><path class="face" d="M8.8 12.6q3.2 2.9 6.4 0"/></svg>
+  <h1>ExpressYou</h1><span id="count"></span>
+</header>
+<div class="search">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+  <input id="q" type="search" placeholder="Search memes" aria-label="Search memes" autocomplete="off" autofocus>
+</div>
 <div class="tabbar">
   <button class="scroll prev" type="button" aria-label="Scroll categories left" title="More categories" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
   <nav id="tabs" aria-label="Categories"></nav>
