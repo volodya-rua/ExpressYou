@@ -126,9 +126,20 @@ function notice(text) {
   setTimeout(() => n.remove(), 4000);
 }
 
-function send(dataUrl, name) {
-  // The site may have rebuilt its message box since we last looked.
-  const ok = pasteFile(dataUrl, name, box?.isConnected ? box : findBox(), true);
+let noStickerMaker = false;
+async function send(dataUrl, name) {
+  const target = box?.isConnected ? box : findBox(); // the site may have rebuilt its message box since we last looked
+  // WhatsApp only makes stickers through its own sticker maker, so still images go there (it can't animate,
+  // so GIFs are pasted and play as GIFs). If the maker can't be found, the meme is pasted as a photo instead,
+  // and later picks on this page skip straight to that.
+  if (location.hostname === 'web.whatsapp.com' && !/\.gif$/i.test(name) && !noStickerMaker) {
+    const [head, b64] = dataUrl.split(',');
+    const file = new File([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], name, { type: head.slice(5, head.indexOf(';')) });
+    if (await whatsappSticker(file)) { clickWhatsAppSend(target); return true; }
+    noStickerMaker = true;
+    notice("WhatsApp's sticker maker wasn't found, so this went as a photo.");
+  }
+  const ok = pasteFile(dataUrl, name, target, true);
   if (!ok) notice("Couldn't find the message box. Click into the chat and pick again.");
   return ok;
 }
@@ -148,7 +159,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     isOpen ? closePanel() : openPanel();
     reply(true);
   }
-  if (m?.expressyou === 'paste') reply(send(m.dataUrl, m.name));
+  if (m?.expressyou === 'paste') { send(m.dataUrl, m.name).then(reply); return true; } // reply once it's done
 });
 document.addEventListener('mousedown', e => { if (isOpen && !e.composedPath().includes(host)) closePanel(false); }, true);
 document.addEventListener('keydown', e => { if (isOpen && e.key === 'Escape') closePanel(); }, true);
